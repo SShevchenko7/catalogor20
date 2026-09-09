@@ -915,8 +915,8 @@
           </div>
           <!-- CAMPO NUEVO DE NÚMERO DE TELÉFONO -->
           <div class="input-group-modal">
-            <label><i class="fa-solid fa-phone"></i> TELÉFONO *</label>
-            <input type="text" id="phoneInput" placeholder="Ej. 0412-1234567">
+            <label><i class="fa-solid fa-phone"></i> NÚMERO DE TELÉFONO *</label>
+            <input type="text" id="clientPhoneInput" placeholder="Ej. 0414-1234567">
           </div>
           <div class="input-group-modal">
             <label><i class="fa-solid fa-user-tie"></i> VENDEDOR (AUTORIZADO)</label>
@@ -937,7 +937,7 @@
             <label><i class="fa-solid fa-location-dot"></i> DIRECCIÓN (Opcional)</label>
             <input type="text" id="addressInput" placeholder="Ej. Av. Principal, Local #12">
           </div>
-          <!-- CAMPO NUEVO DE NOTAS Y OBSERVACIONES -->
+          <!-- CAMPO DE NOTAS Y OBSERVACIONES -->
           <div class="input-group-modal full-width" style="margin-top: 5px;">
             <label><i class="fa-solid fa-note-sticky"></i> NOTAS / FRAGANCIAS / OBSERVACIONES (Opcional)</label>
             <textarea id="orderNoteInput" rows="2" placeholder="Ej. Caja Nutribela: 3 de Argán, 4 de Chocolate y 5 de Keratina..."></textarea>
@@ -1854,7 +1854,7 @@
 
       const cliente = document.getElementById("clientNameInput").value.trim();
       const rifCedula = document.getElementById("rifCedulaInput").value.trim();
-      const telefono = document.getElementById("phoneInput").value.trim(); // CAPTURA DE TELÉFONO
+      const telefono = document.getElementById("clientPhoneInput").value.trim(); // CAPTURA DE TELÉFONO
       const vendedor = document.getElementById("sellerNameInput").value.trim();
       const sector = document.getElementById("sectorSelect").value;
       const direccion = document.getElementById("addressInput").value.trim();
@@ -2038,7 +2038,7 @@
       let message = "*NUEVO PEDIDO - COMERCIALIZADORA RAMI2020 CA*\n\n";
       message += `👤 *Cliente/Local:* ${cliente}\n`;
       message += `🆔 *RIF/Cédula:* ${rifCedula}\n`;
-      message += `📞 *Teléfono:* ${telefono}\n`; // INCLUSIÓN DE TELÉFONO EN WHATSAPP
+      message += `📞 *Teléfono:* ${telefono}\n`; // INCLUSIÓN DEL TELÉFONO EN WHATSAPP
       message += `📍 *Sector:* ${sector}\n`;
       if (direccion) {
         message += `🏠 *Dirección:* ${direccion}\n`;
@@ -2062,7 +2062,7 @@
       
       document.getElementById("clientNameInput").value = "";
       document.getElementById("rifCedulaInput").value = "";
-      document.getElementById("phoneInput").value = ""; // LIMPIAR CAMPO DE TELÉFONO
+      document.getElementById("clientPhoneInput").value = ""; // LIMPIAR TELÉFONO
       document.getElementById("sectorSelect").value = "";
       document.getElementById("addressInput").value = "";
       document.getElementById("orderNoteInput").value = "";
