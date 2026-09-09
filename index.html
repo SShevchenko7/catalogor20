@@ -913,6 +913,11 @@
             <label><i class="fa-solid fa-id-card"></i> RIF / CÉDULA *</label>
             <input type="text" id="rifCedulaInput" placeholder="Ej. J-12345678-9 o V-12345678">
           </div>
+          <!-- CAMPO NUEVO DE TELÉFONO -->
+          <div class="input-group-modal">
+            <label><i class="fa-solid fa-phone"></i> NÚMERO DE TELÉFONO *</label>
+            <input type="tel" id="telefonoInput" placeholder="Ej. 0414-1234567">
+          </div>
           <div class="input-group-modal">
             <label><i class="fa-solid fa-user-tie"></i> VENDEDOR (AUTORIZADO)</label>
             <input type="text" id="sellerNameInput" readonly style="background:#e2e8f0; font-weight:bold;">
@@ -932,7 +937,7 @@
             <label><i class="fa-solid fa-location-dot"></i> DIRECCIÓN (Opcional)</label>
             <input type="text" id="addressInput" placeholder="Ej. Av. Principal, Local #12">
           </div>
-          <!-- CAMPO NUEVO DE NOTAS Y OBSERVACIONES -->
+          <!-- CAMPO DE NOTAS Y OBSERVACIONES -->
           <div class="input-group-modal full-width" style="margin-top: 5px;">
             <label><i class="fa-solid fa-note-sticky"></i> NOTAS / FRAGANCIAS / OBSERVACIONES (Opcional)</label>
             <textarea id="orderNoteInput" rows="2" placeholder="Ej. Caja Nutribela: 3 de Argán, 4 de Chocolate y 5 de Keratina..."></textarea>
@@ -1849,13 +1854,14 @@
 
       const cliente = document.getElementById("clientNameInput").value.trim();
       const rifCedula = document.getElementById("rifCedulaInput").value.trim();
+      const telefono = document.getElementById("telefonoInput").value.trim();
       const vendedor = document.getElementById("sellerNameInput").value.trim();
       const sector = document.getElementById("sectorSelect").value;
       const direccion = document.getElementById("addressInput").value.trim();
-      const notaCliente = document.getElementById("orderNoteInput").value.trim(); // CAPTURA DE NOTA
+      const notaCliente = document.getElementById("orderNoteInput").value.trim();
 
-      if (!cliente || !rifCedula || !sector) {
-        alert("Por favor completa el Cliente, el Rif / Cédula y selecciona un Sector.");
+      if (!cliente || !rifCedula || !telefono || !sector) {
+        alert("Por favor completa el Cliente, el Rif / Cédula, el Teléfono y selecciona un Sector.");
         return;
       }
 
@@ -1941,6 +1947,8 @@
         <div style="font-size: 14px; color: #1e293b; font-weight: bold;">${escapeHtml(cliente)}</div>
         <div style="margin-top: 6px;"><strong>RIF / Cédula:</strong></div>
         <div style="font-size: 13px; color: #334155; font-family: monospace;">${escapeHtml(rifCedula)}</div>
+        <div style="margin-top: 6px;"><strong>Teléfono:</strong></div>
+        <div style="font-size: 13px; color: #334155; font-family: monospace; font-weight: bold;">${escapeHtml(telefono)}</div>
         <div style="margin-top: 8px;"><strong>Sector:</strong></div>
         <div style="font-size: 13px; color: #00a884; font-weight: bold;">${escapeHtml(sector)}</div>
       </div>
@@ -1991,7 +1999,6 @@
       </tr>
     </table>
 
-    <!-- BLOQUE DE NOTA EN EL HTML SI EL USUARIO ESCRIBIÓ ALGO -->
     ${notaCliente ? `
       <div style="margin-top: 20px; background: #fffbeb; border: 1px solid #fde047; padding: 12px; border-radius: 6px; font-size: 13px;">
         <strong style="color: #854d0e; display: block; margin-bottom: 4px;"><i class="fa-solid fa-circle-exclamation"></i> Observaciones / Fragancias / Notas:</strong>
@@ -2031,12 +2038,13 @@
       let message = "*NUEVO PEDIDO - COMERCIALIZADORA RAMI2020 CA*\n\n";
       message += `👤 *Cliente/Local:* ${cliente}\n`;
       message += `🆔 *RIF/Cédula:* ${rifCedula}\n`;
+      message += `📞 *Teléfono:* ${telefono}\n`;
       message += `📍 *Sector:* ${sector}\n`;
       if (direccion) {
         message += `🏠 *Dirección:* ${direccion}\n`;
       }
       if (notaCliente) {
-        message += `📝 *Nota:* ${notaCliente}\n`; // INCLUSIÓN DE NOTA EN WHATSAPP
+        message += `📝 *Nota:* ${notaCliente}\n`;
       }
       message += `👔 *Vendedor:* ${vendedor}\n`;
       message += `📦 *Unidades sueltas:* ${totalUnidadesSueltas}\n`;
@@ -2054,9 +2062,10 @@
       
       document.getElementById("clientNameInput").value = "";
       document.getElementById("rifCedulaInput").value = "";
+      document.getElementById("telefonoInput").value = "";
       document.getElementById("sectorSelect").value = "";
       document.getElementById("addressInput").value = "";
-      document.getElementById("orderNoteInput").value = ""; // LIMPIAR CAMPO DE NOTA
+      document.getElementById("orderNoteInput").value = "";
 
       filterProducts();
     }
