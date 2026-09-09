@@ -963,7 +963,7 @@
        MODAL DE ADMINISTRACIÓN DE USUARIOS
   ========================================================= -->
   <div class="modal-overlay" id="adminModal">
-    <div class="modal-content" style="max-width: 750px;">
+    <div class="modal-content" style="max-width: 800px;">
       <div class="modal-header">
         <h3><i class="fa-solid fa-users-gear"></i> Panel de Administración - Gestión de Usuarios</h3>
         <i class="fa-solid fa-xmark" style="cursor:pointer" onclick="closeAdminModal()"></i>
@@ -1027,6 +1027,7 @@
     let cart = {}; 
     let productModes = {};
     let currentUser = null;
+    let sessionCheckInterval = null; // Variable para la verificación en tiempo real
 
     /* =========================================================
        PERSISTENCIA DE ORDEN (LOCALSTORAGE)
@@ -1081,7 +1082,7 @@
     }
 
     /* =========================================================
-       SISTEMA DE LOGIN
+       SISTEMA DE LOGIN Y CONTROL DE ACCESO REMOTO
     ========================================================= */
     document.getElementById("loginFormElement").addEventListener("submit", async function(e) {
       e.preventDefault();
@@ -1115,7 +1116,16 @@
           return;
         }
 
-        currentUser = data[0];
+        const usuarioEncontrado = data[0];
+
+        // Validar si el administrador desactivó el acceso a este usuario
+        if (usuarioEncontrado.activo === false) {
+          errorMsg.textContent = "Su acceso ha sido bloqueado por el administrador.";
+          errorMsg.style.display = "block";
+          return;
+        }
+
+        currentUser = usuarioEncontrado;
         localStorage.setItem("rami_session", JSON.stringify(currentUser));
         aplicarSesionUsuario();
 
@@ -1145,15 +1155,46 @@
       }
 
       loadProducts();
+      iniciarMonitoreoAcceso(); // Inicia la verificación periódica de bloqueo remoto
+    }
+
+    // Función que revisa cada 10 segundos en Supabase si el Admin revocó el acceso
+    function iniciarMonitoreoAcceso() {
+      if (sessionCheckInterval) clearInterval(sessionCheckInterval);
+
+      sessionCheckInterval = setInterval(async () => {
+        if (!currentUser || !currentUser.id) return;
+
+        try {
+          const { data, error } = await _supabase
+            .from("usuarios")
+            .select("activo")
+            .eq("id", currentUser.id)
+            .single();
+
+          if (error || !data || data.activo === false) {
+            // El admin revocó el acceso o el usuario fue borrado
+            forzarCierreSesionPorBloqueo("Su acceso a la plataforma ha sido suspendido por el Administrador.");
+          }
+        } catch (e) {
+          console.error("Error al verificar estado de sesión", e);
+        }
+      }, 10000); // Revisa cada 10 segundos
+    }
+
+    function forzarCierreSesionPorBloqueo(mensaje) {
+      if (sessionCheckInterval) clearInterval(sessionCheckInterval);
+      localStorage.removeItem("rami_session");
+      alert(mensaje);
+      location.reload(); // Recarga la página y muestra el login obligatoriamente
     }
 
     function cerrarSesion() {
       let seguro = confirm("¿Está seguro de que desea salir?");
       if (seguro) {
+        if (sessionCheckInterval) clearInterval(sessionCheckInterval);
         localStorage.removeItem("rami_session");
         location.reload();
-      } else {
-        console.log("Cierre de sesión cancelado.");
       }
     }
 
@@ -1163,7 +1204,14 @@
       if (savedSession) {
         try {
           currentUser = JSON.parse(savedSession);
-          aplicarSesionUsuario();
+          // Verificación inicial rápida al cargar con credenciales autoguardadas
+          _supabase.from("usuarios").select("activo").eq("id", currentUser.id).single().then(({data}) => {
+            if (data && data.activo === false) {
+              localStorage.removeItem("rami_session");
+              return; // Mantiene el login visible
+            }
+            aplicarSesionUsuario();
+          });
           return;
         } catch(e) {
           localStorage.removeItem("rami_session");
@@ -1206,6 +1254,7 @@
               <th>Usuario</th>
               <th>Nombre Completo</th>
               <th>Rol / Tipo</th>
+              <th>Estado Acceso</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -1215,6 +1264,7 @@
       data.forEach(u => {
         const rolUsuario = u.rol || (u.usuario.toLowerCase() === 'admin' ? 'admin' : 'vendedor');
         const esAdminPrincipal = u.usuario.toLowerCase() === 'admin';
+        const estaActivo = u.activo !== false; // Por defecto true si es null/undefined
         
         html += `
           <tr>
@@ -1222,7 +1272,18 @@
             <td>${escapeHtml(u.nombre_completo || 'N/D')}</td>
             <td><span style="padding:2px 6px; border-radius:4px; background:${String(rolUsuario).toLowerCase().includes('admin') ? '#fef3c7':'#e2e8f0'}; font-weight:bold;">${escapeHtml(rolUsuario)}</span></td>
             <td>
+              <span style="padding:2px 6px; border-radius:4px; background:${estaActivo ? '#d1fae5':'#fee2e2'}; color:${estaActivo ? '#065f46':'#b91c1c'}; font-weight:bold; font-size:0.75rem;">
+                ${estaActivo ? 'CONECTADO / ACTIVO' : 'BLOQUEADO'}
+              </span>
+            </td>
+            <td>
               <div style="display:flex; gap:5px;">
+                <!-- Botón para alternar acceso Permitido / Bloqueado -->
+                ${!esAdminPrincipal ? `
+                  <button onclick="toggleBloqueoUsuario(${u.id}, ${estaActivo})" style="background:${estaActivo ? '#fef3c7' : '#d1fae5'}; color:${estaActivo ? '#92400e' : '#065f46'}; border:none; padding:3px 6px; border-radius:4px; cursor:pointer;" title="${estaActivo ? 'Bloquear Acceso' : 'Permitir Acceso'}">
+                    <i class="fa-solid ${estaActivo ? 'fa-ban' : 'fa-check'}"></i> ${estaActivo ? 'Bloquear' : 'Permitir'}
+                  </button>
+                ` : ''}
                 <button onclick="prepararEdicionUsuario(${u.id}, '${escapeAttribute(u.usuario)}', '${escapeAttribute(u.password || '')}', '${escapeAttribute(u.nombre_completo || '')}', '${escapeAttribute(rolUsuario)}')" style="background:#e0f2fe; color:#0369a1; border:none; padding:3px 6px; border-radius:4px; cursor:pointer;" title="Editar"><i class="fa-solid fa-pen"></i></button>
                 ${!esAdminPrincipal ? `<button onclick="eliminarUsuario(${u.id})" style="background:#fee2e2; color:#b91c1c; border:none; padding:3px 6px; border-radius:4px; cursor:pointer;" title="Eliminar"><i class="fa-solid fa-trash"></i></button>` : '<span style="color:#94a3b8; font-size:0.75rem; align-self:center;">Protegido</span>'}
               </div>
@@ -1233,6 +1294,21 @@
 
       html += `</tbody></table>`;
       container.innerHTML = html;
+    }
+
+    // Función para que el Admin bloquee o reactive el acceso instantáneamente
+    async function toggleBloqueoUsuario(id, estadoActual) {
+      const nuevoEstado = !estadoActual;
+      const { error } = await _supabase
+        .from("usuarios")
+        .update({ activo: nuevoEstado })
+        .eq("id", id);
+
+      if (error) {
+        alert("Error al cambiar el estado del usuario: " + error.message);
+        return;
+      }
+      cargarListaUsuariosAdmin();
     }
 
     function prepararEdicionUsuario(id, usuario, password, nombreCompleto, rol) {
@@ -1283,12 +1359,12 @@
         }
         alert("¡Usuario actualizado exitosamente!");
       } else {
-        let insertData = { usuario: u, password: p, nombre_completo: f, rol: r };
+        let insertData = { usuario: u, password: p, nombre_completo: f, rol: r, activo: true };
         const { error } = await _supabase.from("usuarios").insert([insertData]);
 
         if (error) {
           const { error: errorFallback } = await _supabase.from("usuarios").insert([
-            { usuario: u, password: p, nombre_completo: f }
+            { usuario: u, password: p, nombre_completo: f, activo: true }
           ]);
           if (errorFallback) {
             alert("Error al crear usuario.");
@@ -1313,7 +1389,7 @@
     }
 
     /* =========================================================
-       ORDEN SUBCATEGORIAS
+       ORDEN SUBCATEGORIAS Y PRODUCTOS (RESTO DE LA APP)
     ========================================================= */
     const ORDEN_SUBCATEGORIAS_ALIMENTOS = [
       "ACEITE", "ARROZ", "HARINA MAIZ", "HARINA TRIGO", "PASTA", "AZUCAR", "CAFE", "GRANOS", "MANTEQUILLA", "MAYONESA", "MAYONESA INDUSTRIAL", "SALSA TOMATE", "SALSA INDUSTRIAL", "MOSTAZA", "MOSTAZA INDUSTRIAL", "SALSA BBQ", "PAPAS FRITAS", "SALSA VARIAS", "CARTON HUEVO", "SAL", "QUESO DE AÑO", "UNTAR", "VAINILLAS", "VINAGRES", "CEREALES", "CREMA DE ARROZ", "AVENA", "FOROROS", "LECHE POLVO", "COMPLEMENTO", "COMPOTA", "LECHE CONDENSADA", "LECHE EVAPORADA", "LECHE LIQ/CHICHAS", "BEBIDAS ACHOCOLATADAS", "CREMA DE LECHE", "MASA FACIL", "AJO", "MIEL"
@@ -1346,9 +1422,6 @@
       }
     }
 
-    /* =========================================================
-       CARGAR PRODUCTOS
-    ========================================================= */
     async function loadProducts() {
       try {
         let allData = [];
@@ -1387,9 +1460,6 @@
       }
     }
 
-    /* =========================================================
-       CATEGORIAS
-    ========================================================= */
     function populateCategoriesUI() {
       const mainSelect = document.getElementById("mainCategorySelect");
       const sidebarTree = document.getElementById("sidebarCategoryTree");
