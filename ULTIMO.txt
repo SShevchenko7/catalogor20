@@ -1158,7 +1158,7 @@
       iniciarMonitoreoAcceso(); // Inicia la verificación periódica de bloqueo remoto
     }
 
-    // Función que revisa cada 60 segundos en Supabase si el Admin revocó el acceso (Ahorro máximo)
+    // Función que revisa cada 10 segundos en Supabase si el Admin revocó el acceso
     function iniciarMonitoreoAcceso() {
       if (sessionCheckInterval) clearInterval(sessionCheckInterval);
 
@@ -1179,7 +1179,7 @@
         } catch (e) {
           console.error("Error al verificar estado de sesión", e);
         }
-      }, 60000); // Revisa cada 60 segundos (60000 ms)
+      }, 10000); // Revisa cada 10 segundos
     }
 
     function forzarCierreSesionPorBloqueo(mensaje) {
