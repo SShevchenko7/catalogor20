@@ -733,6 +733,24 @@
       background: white;
     }
 
+    /* COMPOSICIÓN TIPO DE DOCUMENTO Y RIF / CÉDULA */
+    .doc-type-group {
+      display: flex;
+      gap: 0.35rem;
+    }
+
+    .doc-type-group select {
+      width: 75px;
+      font-weight: 700;
+      background-color: #f1f5f9;
+      border-color: var(--border-color);
+      cursor: pointer;
+    }
+
+    .doc-type-group input {
+      flex: 1;
+    }
+
     .btn-cancel-order {
       background: #fee2e2;
       color: #b91c1c;
@@ -905,23 +923,43 @@
       </div>
       <div class="modal-body" id="modalCartBody">
         <div class="client-seller-row">
+
+          <!-- RIF / CÉDULA DE CLIENTE CON SELECTOR DE TIPO Y AUTOCOMPLETADO -->
+          <div class="input-group-modal">
+            <label><i class="fa-solid fa-id-card"></i> RIF / CÉDULA *</label>
+            <div class="doc-type-group">
+              <select id="tipoDocInput" onchange="ejecutarBusquedaClienteAuto()">
+                <option value="V">V-</option>
+                <option value="E">E-</option>
+                <option value="J">J-</option>
+                <option value="G">G-</option>
+              </select>
+              <input 
+                type="text" 
+                id="numDocInput" 
+                placeholder="12345678" 
+                onblur="ejecutarBusquedaClienteAuto()" 
+                onkeyup="if(event.key==='Enter') ejecutarBusquedaClienteAuto()"
+              >
+            </div>
+          </div>
+
           <div class="input-group-modal">
             <label><i class="fa-solid fa-user"></i> CLIENTE / LOCAL *</label>
             <input type="text" id="clientNameInput" placeholder="Ej. Supermercado El Ahorro">
           </div>
-          <div class="input-group-modal">
-            <label><i class="fa-solid fa-id-card"></i> RIF / CÉDULA *</label>
-            <input type="text" id="rifCedulaInput" placeholder="Ej. J-12345678-9 o V-12345678">
-          </div>
-          <!-- CAMPO NUEVO DE TELÉFONO -->
+
+          <!-- TELÉFONO -->
           <div class="input-group-modal">
             <label><i class="fa-solid fa-phone"></i> NÚMERO DE TELÉFONO *</label>
             <input type="tel" id="telefonoInput" placeholder="Ej. 0414-1234567">
           </div>
+
           <div class="input-group-modal">
             <label><i class="fa-solid fa-user-tie"></i> VENDEDOR (AUTORIZADO)</label>
             <input type="text" id="sellerNameInput" readonly style="background:#e2e8f0; font-weight:bold;">
           </div>
+
           <div class="input-group-modal">
             <label><i class="fa-solid fa-map-location-dot"></i> SECTOR *</label>
             <select id="sectorSelect">
@@ -933,11 +971,13 @@
               <option value="Eje Sierra">5. Eje Sierra</option>
             </select>
           </div>
+
           <div class="input-group-modal full-width">
             <label><i class="fa-solid fa-location-dot"></i> DIRECCIÓN (Opcional)</label>
             <input type="text" id="addressInput" placeholder="Ej. Av. Principal, Local #12">
           </div>
-          <!-- CAMPO DE NOTAS Y OBSERVACIONES -->
+
+          <!-- NOTAS Y OBSERVACIONES -->
           <div class="input-group-modal full-width" style="margin-top: 5px;">
             <label><i class="fa-solid fa-note-sticky"></i> NOTAS / FRAGANCIAS / OBSERVACIONES (Opcional)</label>
             <textarea id="orderNoteInput" rows="2" placeholder="Ej. Caja Nutribela: 3 de Argán, 4 de Chocolate y 5 de Keratina..."></textarea>
@@ -1027,7 +1067,7 @@
     let cart = {}; 
     let productModes = {};
     let currentUser = null;
-    let sessionCheckInterval = null; // Variable para la verificación en tiempo real
+    let sessionCheckInterval = null; 
 
     /* =========================================================
        PERSISTENCIA DE ORDEN (LOCALSTORAGE)
@@ -1082,6 +1122,95 @@
     }
 
     /* =========================================================
+       GESTIÓN Y AUTOCOMPLETADO DE CLIENTES (SUPABASE)
+    ========================================================= */
+
+    function construirRifCedulaCompleto() {
+      const tipo = document.getElementById("tipoDocInput").value;
+      const num = document.getElementById("numDocInput").value.trim();
+      if (!num) return "";
+      return `${tipo}-${num}`;
+    }
+
+    function desglosarRifCedula(rifCedulaCompleto) {
+      if (!rifCedulaCompleto) return { tipo: "V", num: "" };
+      const partes = rifCedulaCompleto.split("-");
+      if (partes.length >= 2) {
+        const tipo = partes[0].toUpperCase();
+        const num = partes.slice(1).join("-");
+        if (["V", "E", "J", "G"].includes(tipo)) {
+          return { tipo: tipo, num: num };
+        }
+      }
+      return { tipo: "V", num: rifCedulaCompleto };
+    }
+
+    async function ejecutarBusquedaClienteAuto() {
+      const rifCedula = construirRifCedulaCompleto();
+      if (!rifCedula) return;
+
+      const clienteEnc = await buscarClienteEnBD(rifCedula);
+      if (clienteEnc) {
+        document.getElementById("clientNameInput").value = clienteEnc.nombre || "";
+        document.getElementById("telefonoInput").value = clienteEnc.telefono || "";
+        document.getElementById("addressInput").value = clienteEnc.direccion || "";
+        
+        if (clienteEnc.sector) {
+          const selectSector = document.getElementById("sectorSelect");
+          selectSector.value = clienteEnc.sector;
+        }
+      }
+    }
+
+    async function buscarClienteEnBD(rifCedula) {
+      if (!rifCedula) return null;
+      try {
+        const { data, error } = await _supabase
+          .from("clientes")
+          .select("*")
+          .eq("rif_cedula", rifCedula.toUpperCase())
+          .maybeSingle();
+
+        if (error) {
+          console.error("Error al buscar cliente en BD:", error);
+          return null;
+        }
+        return data;
+      } catch (e) {
+        console.error("Error en la consulta de clientes:", e);
+        return null;
+      }
+    }
+
+    async function guardarOActualizarClienteBD(datosCliente) {
+      const { rif_cedula, nombre, telefono, direccion, sector, vendedor_email } = datosCliente;
+      if (!rif_cedula || !nombre) return;
+
+      const payload = {
+        rif_cedula: rif_cedula.trim().toUpperCase(),
+        nombre: nombre.trim(),
+        telefono: telefono ? telefono.trim() : "",
+        direccion: direccion ? direccion.trim() : "",
+        sector: sector ? sector.trim() : "",
+        vendedor_email: vendedor_email || ""
+      };
+
+      try {
+        const { error } = await _supabase
+          .from("clientes")
+          .upsert(payload, { onConflict: "rif_cedula" });
+
+        if (error) {
+          console.error("Error al registrar cliente en BD:", error);
+        } else {
+          console.log("Cliente sincronizado exitosamente en la base de datos.");
+        }
+      } catch (e) {
+        console.error("Excepción al guardar cliente:", e);
+      }
+    }
+
+    /* =========================================================
        SISTEMA DE LOGIN Y CONTROL DE ACCESO REMOTO
     ========================================================= */
     document.getElementById("loginFormElement").addEventListener("submit", async function(e) {
@@ -1118,7 +1247,6 @@
 
         const usuarioEncontrado = data[0];
 
-        // Validar si el administrador desactivó el acceso a este usuario
         if (usuarioEncontrado.activo === false) {
           errorMsg.textContent = "Su acceso ha sido bloqueado por el administrador.";
           errorMsg.style.display = "block";
@@ -1155,10 +1283,9 @@
       }
 
       loadProducts();
-      iniciarMonitoreoAcceso(); // Inicia la verificación periódica de bloqueo remoto
+      iniciarMonitoreoAcceso();
     }
 
-    // Función que revisa cada 60 segundos en Supabase si el Admin revocó el acceso (Ahorro máximo)
     function iniciarMonitoreoAcceso() {
       if (sessionCheckInterval) clearInterval(sessionCheckInterval);
 
@@ -1173,20 +1300,19 @@
             .single();
 
           if (error || !data || data.activo === false) {
-            // El admin revocó el acceso o el usuario fue borrado
             forzarCierreSesionPorBloqueo("Su acceso a la plataforma ha sido suspendido por el Administrador.");
           }
         } catch (e) {
           console.error("Error al verificar estado de sesión", e);
         }
-      }, 60000); // Revisa cada 60 segundos (60000 ms)
+      }, 60000);
     }
 
     function forzarCierreSesionPorBloqueo(mensaje) {
       if (sessionCheckInterval) clearInterval(sessionCheckInterval);
       localStorage.removeItem("rami_session");
       alert(mensaje);
-      location.reload(); // Recarga la página y muestra el login obligatoriamente
+      location.reload();
     }
 
     function cerrarSesion() {
@@ -1204,11 +1330,10 @@
       if (savedSession) {
         try {
           currentUser = JSON.parse(savedSession);
-          // Verificación inicial rápida al cargar con credenciales autoguardadas
           _supabase.from("usuarios").select("activo").eq("id", currentUser.id).single().then(({data}) => {
             if (data && data.activo === false) {
               localStorage.removeItem("rami_session");
-              return; // Mantiene el login visible
+              return;
             }
             aplicarSesionUsuario();
           });
@@ -1264,7 +1389,7 @@
       data.forEach(u => {
         const rolUsuario = u.rol || (u.usuario.toLowerCase() === 'admin' ? 'admin' : 'vendedor');
         const esAdminPrincipal = u.usuario.toLowerCase() === 'admin';
-        const estaActivo = u.activo !== false; // Por defecto true si es null/undefined
+        const estaActivo = u.activo !== false;
         
         html += `
           <tr>
@@ -1278,7 +1403,6 @@
             </td>
             <td>
               <div style="display:flex; gap:5px;">
-                <!-- Botón para alternar acceso Permitido / Bloqueado -->
                 ${!esAdminPrincipal ? `
                   <button onclick="toggleBloqueoUsuario(${u.id}, ${estaActivo})" style="background:${estaActivo ? '#fef3c7' : '#d1fae5'}; color:${estaActivo ? '#92400e' : '#065f46'}; border:none; padding:3px 6px; border-radius:4px; cursor:pointer;" title="${estaActivo ? 'Bloquear Acceso' : 'Permitir Acceso'}">
                     <i class="fa-solid ${estaActivo ? 'fa-ban' : 'fa-check'}"></i> ${estaActivo ? 'Bloquear' : 'Permitir'}
@@ -1296,7 +1420,6 @@
       container.innerHTML = html;
     }
 
-    // Función para que el Admin bloquee o reactive el acceso instantáneamente
     async function toggleBloqueoUsuario(id, estadoActual) {
       const nuevoEstado = !estadoActual;
       const { error } = await _supabase
@@ -1389,7 +1512,7 @@
     }
 
     /* =========================================================
-       ORDEN SUBCATEGORIAS Y PRODUCTOS (RESTO DE LA APP)
+       ORDEN SUBCATEGORIAS Y PRODUCTOS
     ========================================================= */
     const ORDEN_SUBCATEGORIAS_ALIMENTOS = [
       "ACEITE", "ARROZ", "HARINA MAIZ", "HARINA TRIGO", "PASTA", "AZUCAR", "CAFE", "GRANOS", "MANTEQUILLA", "MAYONESA", "MAYONESA INDUSTRIAL", "SALSA TOMATE", "SALSA INDUSTRIAL", "MOSTAZA", "MOSTAZA INDUSTRIAL", "SALSA BBQ", "PAPAS FRITAS", "SALSA VARIAS", "CARTON HUEVO", "SAL", "QUESO DE AÑO", "UNTAR", "VAINILLAS", "VINAGRES", "CEREALES", "CREMA DE ARROZ", "AVENA", "FOROROS", "LECHE POLVO", "COMPLEMENTO", "COMPOTA", "LECHE CONDENSADA", "LECHE EVAPORADA", "LECHE LIQ/CHICHAS", "BEBIDAS ACHOCOLATADAS", "CREMA DE LECHE", "MASA FACIL", "AJO", "MIEL"
@@ -1916,24 +2039,35 @@
       }).join("");
     }
 
-    function generateAndDownloadHtmlOrder() {
+    async function generateAndDownloadHtmlOrder() {
       if (!Object.keys(cart).length) {
         alert("El carrito está vacío.");
         return;
       }
 
       const cliente = document.getElementById("clientNameInput").value.trim();
-      const rifCedula = document.getElementById("rifCedulaInput").value.trim();
+      const rifCedula = construirRifCedulaCompleto();
+      const numDocOnly = document.getElementById("numDocInput").value.trim();
       const telefono = document.getElementById("telefonoInput").value.trim();
       const vendedor = document.getElementById("sellerNameInput").value.trim();
       const sector = document.getElementById("sectorSelect").value;
       const direccion = document.getElementById("addressInput").value.trim();
       const notaCliente = document.getElementById("orderNoteInput").value.trim();
 
-      if (!cliente || !rifCedula || !telefono || !sector) {
-        alert("Por favor completa el Cliente, el Rif / Cédula, el Teléfono y selecciona un Sector.");
+      if (!cliente || !numDocOnly || !telefono || !sector) {
+        alert("Por favor completa el Cliente, la Cédula / RIF, el Teléfono y selecciona un Sector.");
         return;
       }
+
+      // Guardar o actualizar datos del cliente en Supabase
+      await guardarOActualizarClienteBD({
+        rif_cedula: rifCedula,
+        nombre: cliente,
+        telefono: telefono,
+        direccion: direccion,
+        sector: sector,
+        vendedor_email: currentUser ? currentUser.usuario : ''
+      });
 
       const fechaActual = new Date().toLocaleDateString("es-VE");
       const ahora = new Date();
@@ -2131,7 +2265,7 @@
       closeOrderModal();
       
       document.getElementById("clientNameInput").value = "";
-      document.getElementById("rifCedulaInput").value = "";
+      document.getElementById("numDocInput").value = "";
       document.getElementById("telefonoInput").value = "";
       document.getElementById("sectorSelect").value = "";
       document.getElementById("addressInput").value = "";
