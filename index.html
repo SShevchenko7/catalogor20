@@ -1992,6 +1992,16 @@
         limpiarOrdenDeLocalStorage();
         updateCartSummary();
         closeOrderModal();
+        
+        // REINICIAR FORMULARIO DE DATOS DEL CLIENTE COMPLETAMENTE EN BLANCO
+        document.getElementById("tipoDocInput").value = "V";
+        document.getElementById("numDocInput").value = "";
+        document.getElementById("clientNameInput").value = "";
+        document.getElementById("telefonoInput").value = "";
+        document.getElementById("sectorSelect").value = "";
+        document.getElementById("addressInput").value = "";
+        document.getElementById("orderNoteInput").value = "";
+
         filterProducts();
       }
     }
@@ -2259,13 +2269,16 @@
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
       window.open(whatsappUrl, "_blank");
 
+      // REINICIO TOTAL AL TRAMITAR/ENVIAR LA ORDEN
       cart = {};
       limpiarOrdenDeLocalStorage();
       updateCartSummary();
       closeOrderModal();
       
-      document.getElementById("clientNameInput").value = "";
+      // DEJAR EL FORMULARIO COMPLETAMENTE EN BLANCO PARA LA SIGUIENTE ORDEN
+      document.getElementById("tipoDocInput").value = "V";
       document.getElementById("numDocInput").value = "";
+      document.getElementById("clientNameInput").value = "";
       document.getElementById("telefonoInput").value = "";
       document.getElementById("sectorSelect").value = "";
       document.getElementById("addressInput").value = "";
