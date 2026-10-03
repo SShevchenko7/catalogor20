@@ -1515,7 +1515,7 @@
                     <i class="fa-solid ${estaActivo ? 'fa-ban' : 'fa-check'}"></i> ${estaActivo ? 'Bloquear' : 'Permitir'}
                   </button>
                 ` : ''}
-                <button onclick="prepararEdicionUsuario(${u.id}, '${escapeAttribute(u.usuario)}', '${escapeAttribute(u.password || '')}', '${escapeAttribute(u.nombre_completo \vert{}\vert{} '')}', '${escapeAttribute(rolUsuario)}')" style="background:#e0f2fe; color:#0369a1; border:none; padding:3px 6px; border-radius:4px; cursor:pointer;" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="prepararEdicionUsuario(${u.id})" style="background:#e0f2fe; color:#0369a1; border:none; padding:3px 6px; border-radius:4px; cursor:pointer;" title="Editar"><i class="fa-solid fa-pen"></i></button>
                 ${!esAdminPrincipal ? `<button onclick="eliminarUsuario(${u.id})" style="background:#fee2e2; color:#b91c1c; border:none; padding:3px 6px; border-radius:4px; cursor:pointer;" title="Eliminar"><i class="fa-solid fa-trash"></i></button>` : '<span style="color:#94a3b8; font-size:0.75rem; align-self:center;">Protegido</span>'}
               </div>
             </td>
