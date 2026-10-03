@@ -973,7 +973,7 @@
             </div>
           </div>
 
-          <!-- CLIENTE / LOCAL CON AUTOCOMPLETADO POR NOMBRE O NEGOCIO -->
+          <!-- CLIENTE / LOCAL CON AUTOCOMPLETADO SEGURO POR NOMBRE -->
           <div class="input-group-modal" style="position: relative;">
             <label><i class="fa-solid fa-user"></i> CLIENTE / LOCAL *</label>
             <input 
@@ -1219,8 +1219,9 @@
       }
     }
 
-    // NUEVO: Búsqueda y autocompletado en tiempo real por NOMBRE O NEGOCIO en la BD existente
+    // Búsqueda y autocompletado seguro por nombre o negocio (Con Caché por índice para evitar errores de sintaxis)
     let clientSearchTimeout = null;
+    let clientesCacheBusqueda = [];
 
     function onClientNameInput(val) {
       clearTimeout(clientSearchTimeout);
@@ -1244,8 +1245,10 @@
             return;
           }
 
-          container.innerHTML = data.map(c => `
-            <div class="client-suggestion-item" onclick="seleccionarClienteSugeridoPorNombre('${escapeAttribute(c.rif_cedula)}', '${escapeAttribute(c.nombre)}', '${escapeAttribute(c.telefono || '')}', '${escapeAttribute(c.sector \vert{}\vert{} '')}', '${escapeAttribute(c.direccion || '')}')">
+          clientesCacheBusqueda = data;
+
+          container.innerHTML = data.map((c, index) => `
+            <div class="client-suggestion-item" onclick="seleccionarClientePorIndice(${index})">
               <strong>${escapeHtml(c.nombre)}</strong><br>
               <span style="font-size:0.75rem; color:var(--text-muted);">RIF/Cédula: ${escapeHtml(c.rif_cedula)} \vert{} Tel:${escapeHtml(c.telefono || 'N/D')}</span>
             </div>
@@ -1259,23 +1262,25 @@
       }, 300);
     }
 
-    function seleccionarClienteSugeridoPorNombre(rifCedula, nombre, telefono, sector, direccion) {
-      document.getElementById("clientNameInput").value = nombre;
+    function seleccionarClientePorIndice(index) {
+      const c = clientesCacheBusqueda[index];
+      if (!c) return;
+
+      document.getElementById("clientNameInput").value = c.nombre || "";
       
-      const desglosado = desglosarRifCedula(rifCedula);
+      const desglosado = desglosarRifCedula(c.rif_cedula);
       document.getElementById("tipoDocInput").value = desglosado.tipo;
       document.getElementById("numDocInput").value = desglosado.num;
-      document.getElementById("telefonoInput").value = telefono;
+      document.getElementById("telefonoInput").value = c.telefono || "";
       
-      if (sector) {
-        document.getElementById("sectorSelect").value = sector;
+      if (c.sector) {
+        document.getElementById("sectorSelect").value = c.sector;
       }
       
-      document.getElementById("addressInput").value = direccion;
+      document.getElementById("addressInput").value = c.direccion || "";
       document.getElementById("clientSuggestions").style.display = "none";
     }
 
-    // Ocultar sugerencias si hacen clic fuera del menú flotante
     document.addEventListener("click", (e) => {
       const container = document.getElementById("clientSuggestions");
       const input = document.getElementById("clientNameInput");
