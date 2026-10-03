@@ -751,6 +751,35 @@
       flex: 1;
     }
 
+    /* ESTILOS PARA SUGERENCIAS DE CLIENTES POR NOMBRE */
+    .client-suggestions-container {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 0 0 8px 8px;
+      max-height: 180px;
+      overflow-y: auto;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+    }
+
+    .client-suggestion-item {
+      padding: 10px 12px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      border-bottom: 1px solid #f1f5f9;
+      transition: background 0.15s;
+    }
+
+    .client-suggestion-item:hover {
+      background-color: #f8fafc;
+      color: var(--accent-color);
+    }
+
     .btn-cancel-order {
       background: #fee2e2;
       color: #b91c1c;
@@ -944,9 +973,17 @@
             </div>
           </div>
 
-          <div class="input-group-modal">
+          <!-- CLIENTE / LOCAL CON AUTOCOMPLETADO POR NOMBRE O NEGOCIO -->
+          <div class="input-group-modal" style="position: relative;">
             <label><i class="fa-solid fa-user"></i> CLIENTE / LOCAL *</label>
-            <input type="text" id="clientNameInput" placeholder="Ej. Supermercado El Ahorro">
+            <input 
+              type="text" 
+              id="clientNameInput" 
+              placeholder="Ej. Supermercado El Ahorro" 
+              oninput="onClientNameInput(this.value)" 
+              autocomplete="off"
+            >
+            <div id="clientSuggestions" class="client-suggestions-container"></div>
           </div>
 
           <!-- TELÉFONO -->
@@ -1182,6 +1219,71 @@
       }
     }
 
+    // NUEVO: Búsqueda y autocompletado en tiempo real por NOMBRE O NEGOCIO en la BD existente
+    let clientSearchTimeout = null;
+
+    function onClientNameInput(val) {
+      clearTimeout(clientSearchTimeout);
+      const container = document.getElementById("clientSuggestions");
+      
+      if (!val || val.trim().length < 2) {
+        container.style.display = "none";
+        return;
+      }
+
+      clientSearchTimeout = setTimeout(async () => {
+        try {
+          const { data, error } = await _supabase
+            .from("clientes")
+            .select("*")
+            .ilike("nombre", `%${val.trim()}%`)
+            .limit(10);
+
+          if (error || !data || data.length === 0) {
+            container.style.display = "none";
+            return;
+          }
+
+          container.innerHTML = data.map(c => `
+            <div class="client-suggestion-item" onclick="seleccionarClienteSugeridoPorNombre('${escapeAttribute(c.rif_cedula)}', '${escapeAttribute(c.nombre)}', '${escapeAttribute(c.telefono || '')}', '${escapeAttribute(c.sector \vert{}\vert{} '')}', '${escapeAttribute(c.direccion || '')}')">
+              <strong>${escapeHtml(c.nombre)}</strong><br>
+              <span style="font-size:0.75rem; color:var(--text-muted);">RIF/Cédula: ${escapeHtml(c.rif_cedula)} \vert{} Tel:${escapeHtml(c.telefono || 'N/D')}</span>
+            </div>
+          `).join("");
+          
+          container.style.display = "block";
+        } catch (e) {
+          console.error("Error buscando clientes por nombre:", e);
+          container.style.display = "none";
+        }
+      }, 300);
+    }
+
+    function seleccionarClienteSugeridoPorNombre(rifCedula, nombre, telefono, sector, direccion) {
+      document.getElementById("clientNameInput").value = nombre;
+      
+      const desglosado = desglosarRifCedula(rifCedula);
+      document.getElementById("tipoDocInput").value = desglosado.tipo;
+      document.getElementById("numDocInput").value = desglosado.num;
+      document.getElementById("telefonoInput").value = telefono;
+      
+      if (sector) {
+        document.getElementById("sectorSelect").value = sector;
+      }
+      
+      document.getElementById("addressInput").value = direccion;
+      document.getElementById("clientSuggestions").style.display = "none";
+    }
+
+    // Ocultar sugerencias si hacen clic fuera del menú flotante
+    document.addEventListener("click", (e) => {
+      const container = document.getElementById("clientSuggestions");
+      const input = document.getElementById("clientNameInput");
+      if (container && input && !container.contains(e.target) && e.target !== input) {
+        container.style.display = "none";
+      }
+    });
+
     async function guardarOActualizarClienteBD(datosCliente) {
       const { rif_cedula, nombre, telefono, direccion, sector, vendedor_email } = datosCliente;
       if (!rif_cedula || !nombre) return;
@@ -1408,7 +1510,7 @@
                     <i class="fa-solid ${estaActivo ? 'fa-ban' : 'fa-check'}"></i> ${estaActivo ? 'Bloquear' : 'Permitir'}
                   </button>
                 ` : ''}
-                <button onclick="prepararEdicionUsuario(${u.id}, '${escapeAttribute(u.usuario)}', '${escapeAttribute(u.password || '')}', '${escapeAttribute(u.nombre_completo || '')}', '${escapeAttribute(rolUsuario)}')" style="background:#e0f2fe; color:#0369a1; border:none; padding:3px 6px; border-radius:4px; cursor:pointer;" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="prepararEdicionUsuario(${u.id}, '${escapeAttribute(u.usuario)}', '${escapeAttribute(u.password || '')}', '${escapeAttribute(u.nombre_completo \vert{}\vert{} '')}', '${escapeAttribute(rolUsuario)}')" style="background:#e0f2fe; color:#0369a1; border:none; padding:3px 6px; border-radius:4px; cursor:pointer;" title="Editar"><i class="fa-solid fa-pen"></i></button>
                 ${!esAdminPrincipal ? `<button onclick="eliminarUsuario(${u.id})" style="background:#fee2e2; color:#b91c1c; border:none; padding:3px 6px; border-radius:4px; cursor:pointer;" title="Eliminar"><i class="fa-solid fa-trash"></i></button>` : '<span style="color:#94a3b8; font-size:0.75rem; align-self:center;">Protegido</span>'}
               </div>
             </td>
@@ -1795,8 +1897,7 @@
         const precioCaja = precioUnit * unidadesPorCaja;
         price.innerHTML = `
           <div>
-            <span class="price-label">Precio Caja (${unidadesPorCaja} und)</span>
-            <div class="price-value">$${precioCaja.toFixed(2)}</div>
+            <span class="price-label">Precio Caja (${unidadesPorCaja} und)</span>             <div class="price-value">$${precioCaja.toFixed(2)}</div>
           </div>
         `;
       }
@@ -1993,7 +2094,6 @@
         updateCartSummary();
         closeOrderModal();
         
-        // REINICIAR FORMULARIO DE DATOS DEL CLIENTE COMPLETAMENTE EN BLANCO
         document.getElementById("tipoDocInput").value = "V";
         document.getElementById("numDocInput").value = "";
         document.getElementById("clientNameInput").value = "";
@@ -2032,15 +2132,13 @@
             <div style="flex:2">
               <strong>${escapeHtml(item.product.nombre)}</strong>
               <span style="display:inline-block; margin-top:4px; font-size:0.75rem; background:${isCaja ? "#fef3c7" : "#e2e8f0"}; padding:2px 5px; border-radius:4px;">
-                ${item.mode} ${isCaja ? `(${extraerUnidadesPorCaja(item.product.referencia)} und/caja)` : ''}
+                ${item.mode}${isCaja ? `(${extraerUnidadesPorCaja(item.product.referencia)} und/caja)` : ''}
               </span>
             </div>
             <div class="qty-controls">
               <button class="btn-qty" onclick="updateQty('${escapeAttribute(item.product.codigo)}', ${item.qty - 1}, '${item.mode}')">-</button>
               <input class="qty-input" value="${item.qty}" readonly>
-              <button class="btn-qty" onclick="updateQty('${escapeAttribute(item.product.codigo)}', ${item.qty + 1}, '${item.mode}')">+</button>
-            </div>
-            <div style="min-width:70px; text-align:right; font-weight:700;">$${subtotal.toFixed(2)}</div>
+              <button class="btn-qty" onclick="updateQty('${escapeAttribute(item.product.codigo)}',${item.qty + 1}, '${item.mode}')">+</button>             </div>             <div style="min-width:70px; text-align:right; font-weight:700;">$${subtotal.toFixed(2)}</div>
             <button class="btn-remove-item" onclick="updateQty('${escapeAttribute(item.product.codigo)}', 0, '${item.mode}')">
               <i class="fa-solid fa-trash-can"></i>
             </button>
@@ -2069,7 +2167,6 @@
         return;
       }
 
-      // Guardar o actualizar datos del cliente en Supabase
       await guardarOActualizarClienteBD({
         rif_cedula: rifCedula,
         nombre: cliente,
@@ -2114,8 +2211,7 @@
             <td style="font-family:monospace; padding:8px; border:1px solid #cbd5e1;">${escapeHtml(item.product.codigo)}</td>
             <td style="padding:8px; border:1px solid #cbd5e1;">${escapeHtml(item.product.nombre)}</td>
             <td style="text-align:center; padding:8px; border:1px solid #cbd5e1; font-weight:bold;">${!isCaja ? item.qty : '-'}</td>
-            <td style="text-align:center; padding:8px; border:1px solid #cbd5e1; font-weight:bold;">${isCaja ? item.qty : '-'}</td>
-            <td style="text-align:right; padding:8px; border:1px solid #cbd5e1; font-weight:bold;">$${subtotalItem.toFixed(2)}</td>
+            <td style="text-align:center; padding:8px; border:1px solid #cbd5e1; font-weight:bold;">${isCaja ? item.qty : '-'}</td>             <td style="text-align:right; padding:8px; border:1px solid #cbd5e1; font-weight:bold;">$${subtotalItem.toFixed(2)}</td>
           </tr>
         `;
       });
@@ -2205,11 +2301,7 @@
       </tr>
       <tr>
         <td>Ítems distintos:</td>
-        <td style="text-align:center;">${Object.keys(cart).length}</td>
-      </tr>
-      <tr>
-        <td style="background: #0f172a; color: white;">TOTAL GENERAL:</td>
-        <td style="text-align:right; font-weight: bold; background: #0f172a; color: white;">$${totalGeneralPedido.toFixed(2)}</td>
+        <td style="text-align:center;">${Object.keys(cart).length}</td>       </tr>       <tr>         <td style="background: #0f172a; color: white;">TOTAL GENERAL:</td>         <td style="text-align:right; font-weight: bold; background: #0f172a; color: white;">$${totalGeneralPedido.toFixed(2)}</td>
       </tr>
     </table>
 
@@ -2269,13 +2361,11 @@
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
       window.open(whatsappUrl, "_blank");
 
-      // REINICIO TOTAL AL TRAMITAR/ENVIAR LA ORDEN
       cart = {};
       limpiarOrdenDeLocalStorage();
       updateCartSummary();
       closeOrderModal();
       
-      // DEJAR EL FORMULARIO COMPLETAMENTE EN BLANCO PARA LA SIGUIENTE ORDEN
       document.getElementById("tipoDocInput").value = "V";
       document.getElementById("numDocInput").value = "";
       document.getElementById("clientNameInput").value = "";
