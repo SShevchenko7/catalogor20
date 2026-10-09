@@ -1619,11 +1619,14 @@
     }
 
     /* =========================================================
-       ORDEN SUBCATEGORIAS Y PRODUCTOS
+       ORDEN SUBCATEGORIAS Y PRODUCTOS (CON CACHÉ OPTIMIZADO)
     ========================================================= */
     const ORDEN_SUBCATEGORIAS_ALIMENTOS = [
       "ACEITE", "ARROZ", "HARINA MAIZ", "HARINA TRIGO", "PASTA", "AZUCAR", "CAFE", "GRANOS", "MANTEQUILLA", "MAYONESA", "MAYONESA INDUSTRIAL", "SALSA TOMATE", "SALSA INDUSTRIAL", "MOSTAZA", "MOSTAZA INDUSTRIAL", "SALSA BBQ", "PAPAS FRITAS", "SALSA VARIAS", "CARTON HUEVO", "SAL", "QUESO DE AÑO", "UNTAR", "VAINILLAS", "VINAGRES", "CEREALES", "CREMA DE ARROZ", "AVENA", "FOROROS", "LECHE POLVO", "COMPLEMENTO", "COMPOTA", "LECHE CONDENSADA", "LECHE EVAPORADA", "LECHE LIQ/CHICHAS", "BEBIDAS ACHOCOLATADAS", "CREMA DE LECHE", "MASA FACIL", "AJO", "MIEL"
     ];
+
+    const CACHE_KEY_PRODUCTS = "rami_cached_products_v1";
+    const CACHE_KEY_VERSION = "rami_catalog_version_v1";
 
     function extraerUnidadesPorCaja(textoReferencia) {
       if (!textoReferencia) return 1;
@@ -1654,6 +1657,28 @@
 
     async function loadProducts() {
       try {
+        // 1. Micro-consulta ultraligera para verificar la versión actual en el servidor
+        const { data: versionData, error: versionError } = await _supabase
+          .from("control_version")
+          .select("version")
+          .eq("id", 1)
+          .single();
+
+        const servidorVersion = versionError || !versionData ? 1 : versionData.version;
+        const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
+        const cachedProducts = localStorage.getItem(CACHE_KEY_PRODUCTS);
+
+        // 2. Si la versión coincide y hay caché local, cargamos de inmediato (CERO LOGS DE PRODUCTOS)
+        if (cachedProducts && localVersion && Number(localVersion) === servidorVersion) {
+          console.log("Cargando productos desde el caché local (Versión:", servidorVersion, ")");
+          allProducts = JSON.parse(cachedProducts);
+          
+          processLoadedProducts();
+          return;
+        }
+
+        // 3. Si cambió la versión o no hay caché, descargamos desde Supabase UNA sola vez
+        console.log("Inventario actualizado o caché vacío. Descargando productos de Supabase...");
         let allData = [];
         let from = 0;
         const step = 1000;
@@ -1677,10 +1702,13 @@
           return { ...p, mainCategory: cat, subCategory: sub };
         });
 
-        populateCategoriesUI();
-        filterProducts();
-        updateCartSummary();
+        // Guardamos en el almacenamiento local del navegador
+        localStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(allProducts));
+        localStorage.setItem(CACHE_KEY_VERSION, servidorVersion);
+
+        processLoadedProducts();
       } catch (error) {
+        console.error("Error al cargar inventario:", error);
         document.getElementById("productsGrid").innerHTML = `
           <div class="loading-spinner">
             <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444"></i>
@@ -1689,6 +1717,39 @@
         `;
       }
     }
+
+    function processLoadedProducts() {
+      populateCategoriesUI();
+      filterProducts();
+      updateCartSummary();
+    }
+
+    // Verificación silenciosa en segundo plano al enfocar la pestaña
+    async function verificarVersionSilenciosa() {
+      try {
+        const { data, error } = await _supabase
+          .from("control_version")
+          .select("version")
+          .eq("id", 1)
+          .single();
+
+        if (!error && data) {
+          const servidorVersion = data.version;
+          const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
+
+          if (localVersion && Number(localVersion) < servidorVersion) {
+            console.log("Nueva versión detectada en segundo plano. Actualizando caché...");
+            loadProducts();
+          }
+        }
+      } catch (e) {
+        // Silencioso ante fallos de red momentáneos
+      }
+    }
+
+    window.addEventListener("focus", () => {
+      verificarVersionSilenciosa();
+    });
 
     function populateCategoriesUI() {
       const mainSelect = document.getElementById("mainCategorySelect");
