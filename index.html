@@ -1619,7 +1619,7 @@
     }
 
     /* =========================================================
-       ORDEN SUBCATEGORIAS Y PRODUCTOS (CON CACHÉ OPTIMIZADO)
+       ORDEN SUBCATEGORIAS Y PRODUCTOS (CON CACHÉ OPTIMIZADO V3)
     ========================================================= */
     const ORDEN_SUBCATEGORIAS_ALIMENTOS = [
       "ACEITE", "ARROZ", "HARINA MAIZ", "HARINA TRIGO", "PASTA", "AZUCAR", "CAFE", "GRANOS", "MANTEQUILLA", "MAYONESA", "MAYONESA INDUSTRIAL", "SALSA TOMATE", "SALSA INDUSTRIAL", "MOSTAZA", "MOSTAZA INDUSTRIAL", "SALSA BBQ", "PAPAS FRITAS", "SALSA VARIAS", "CARTON HUEVO", "SAL", "QUESO DE AÑO", "UNTAR", "VAINILLAS", "VINAGRES", "CEREALES", "CREMA DE ARROZ", "AVENA", "FOROROS", "LECHE POLVO", "COMPLEMENTO", "COMPOTA", "LECHE CONDENSADA", "LECHE EVAPORADA", "LECHE LIQ/CHICHAS", "BEBIDAS ACHOCOLATADAS", "CREMA DE LECHE", "MASA FACIL", "AJO", "MIEL"
@@ -1629,8 +1629,8 @@
       "HIGIENICO", "JABON DE BAÑO", "LOCION CORPORAL", "TALCO", "TOALLAS HUMEDAS", "TOALLAS SANITARIAS", "VITAMINAS", "PRESERVATIVOS", "JABON LIQUIDO CORP", "ENJUAGUE BUCAL", "VASELINA", "REPELENTE"
     ];
 
-    const CACHE_KEY_PRODUCTS = "rami_cached_products_v2";
-    const CACHE_KEY_VERSION = "rami_catalog_version_v2";
+    const CACHE_KEY_PRODUCTS = "rami_cached_products_v3";
+    const CACHE_KEY_VERSION = "rami_catalog_version_v3";
 
     function extraerUnidadesPorCaja(textoReferencia) {
       if (!textoReferencia) return 1;
