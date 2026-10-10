@@ -1619,11 +1619,18 @@
     }
 
     /* =========================================================
-       ORDEN SUBCATEGORIAS Y PRODUCTOS
+       ORDEN SUBCATEGORIAS Y PRODUCTOS (CON CACHÉ OPTIMIZADO)
     ========================================================= */
     const ORDEN_SUBCATEGORIAS_ALIMENTOS = [
       "ACEITE", "ARROZ", "HARINA MAIZ", "HARINA TRIGO", "PASTA", "AZUCAR", "CAFE", "GRANOS", "MANTEQUILLA", "MAYONESA", "MAYONESA INDUSTRIAL", "SALSA TOMATE", "SALSA INDUSTRIAL", "MOSTAZA", "MOSTAZA INDUSTRIAL", "SALSA BBQ", "PAPAS FRITAS", "SALSA VARIAS", "CARTON HUEVO", "SAL", "QUESO DE AÑO", "UNTAR", "VAINILLAS", "VINAGRES", "CEREALES", "CREMA DE ARROZ", "AVENA", "FOROROS", "LECHE POLVO", "COMPLEMENTO", "COMPOTA", "LECHE CONDENSADA", "LECHE EVAPORADA", "LECHE LIQ/CHICHAS", "BEBIDAS ACHOCOLATADAS", "CREMA DE LECHE", "MASA FACIL", "AJO", "MIEL"
     ];
+
+    const ORDEN_SUBCATEGORIAS_CUIDADO_PERSONAL = [
+      "HIGIENICO", "JABON DE BAÑO", "LOCION CORPORAL", "TALCO", "TOALLAS HUMEDAS", "TOALLAS SANITARIAS", "VITAMINAS", "PRESERVATIVOS", "JABON LIQUIDO CORP", "ENJUAGUE BUCAL", "VASELINA", "REPELENTE"
+    ];
+
+    const CACHE_KEY_PRODUCTS = "rami_cached_products_v2";
+    const CACHE_KEY_VERSION = "rami_catalog_version_v2";
 
     function extraerUnidadesPorCaja(textoReferencia) {
       if (!textoReferencia) return 1;
@@ -1654,6 +1661,28 @@
 
     async function loadProducts() {
       try {
+        // 1. Micro-consulta ultraligera para verificar la versión actual en el servidor
+        const { data: versionData, error: versionError } = await _supabase
+          .from("control_version")
+          .select("version")
+          .eq("id", 1)
+          .single();
+
+        const servidorVersion = versionError || !versionData ? 1 : versionData.version;
+        const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
+        const cachedProducts = localStorage.getItem(CACHE_KEY_PRODUCTS);
+
+        // 2. Si la versión coincide y hay caché local, cargamos de inmediato
+        if (cachedProducts && localVersion && Number(localVersion) === servidorVersion) {
+          console.log("Cargando productos desde el caché local (Versión:", servidorVersion, ")");
+          allProducts = JSON.parse(cachedProducts);
+          
+          processLoadedProducts();
+          return;
+        }
+
+        // 3. Si cambió la versión o no hay caché, descargamos desde Supabase UNA sola vez
+        console.log("Inventario actualizado o caché vacío. Descargando productos de Supabase...");
         let allData = [];
         let from = 0;
         const step = 1000;
@@ -1677,10 +1706,13 @@
           return { ...p, mainCategory: cat, subCategory: sub };
         });
 
-        populateCategoriesUI();
-        filterProducts();
-        updateCartSummary();
+        // Guardamos en el almacenamiento local del navegador
+        localStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(allProducts));
+        localStorage.setItem(CACHE_KEY_VERSION, servidorVersion);
+
+        processLoadedProducts();
       } catch (error) {
+        console.error("Error al cargar inventario:", error);
         document.getElementById("productsGrid").innerHTML = `
           <div class="loading-spinner">
             <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444"></i>
@@ -1689,6 +1721,39 @@
         `;
       }
     }
+
+    function processLoadedProducts() {
+      populateCategoriesUI();
+      filterProducts();
+      updateCartSummary();
+    }
+
+    // Verificación silenciosa en segundo plano al enfocar la pestaña
+    async function verificarVersionSilenciosa() {
+      try {
+        const { data, error } = await _supabase
+          .from("control_version")
+          .select("version")
+          .eq("id", 1)
+          .single();
+
+        if (!error && data) {
+          const servidorVersion = data.version;
+          const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
+
+          if (!localVersion || Number(localVersion) < servidorVersion) {
+            console.log("Nueva versión detectada. Actualizando caché...");
+            loadProducts();
+          }
+        }
+      } catch (e) {
+        // Silencioso ante fallos de red momentáneos
+      }
+    }
+
+    window.addEventListener("focus", () => {
+      verificarVersionSilenciosa();
+    });
 
     function populateCategoriesUI() {
       const mainSelect = document.getElementById("mainCategorySelect");
@@ -1712,7 +1777,7 @@
         mainSelect.appendChild(option);
 
         const subs = [...new Set(allProducts.filter(p => p.mainCategory === cat).map(p => p.subCategory))];
-        sortSubcategories(subs);
+        sortSubcategories(subs, cat);
 
         const li = document.createElement("li");
         li.className = "cat-item";
@@ -1742,11 +1807,23 @@
       });
     }
 
-    function sortSubcategories(list) {
-      list.sort((a,b) => {
-        const ia = ORDEN_SUBCATEGORIAS_ALIMENTOS.indexOf(a);
-        const ib = ORDEN_SUBCATEGORIAS_ALIMENTOS.indexOf(b);
-        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    function sortSubcategories(list, mainCategory = "") {
+      const catUpper = String(mainCategory || "").toUpperCase().trim();
+      let ordenEspecifico = [];
+
+      if (catUpper.includes("CUIDADO PERSONAL")) {
+        ordenEspecifico = ORDEN_SUBCATEGORIAS_CUIDADO_PERSONAL;
+      } else {
+        ordenEspecifico = ORDEN_SUBCATEGORIAS_ALIMENTOS;
+      }
+
+      list.sort((a, b) => {
+        const ia = ordenEspecifico.indexOf(a);
+        const ib = ordenEspecifico.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.localeCompare(b);
       });
     }
 
@@ -1814,7 +1891,7 @@
       if (!cat) return;
 
       const subs = [...new Set(allProducts.filter(p => p.mainCategory === cat).map(p => p.subCategory))];
-      sortSubcategories(subs);
+      sortSubcategories(subs, cat);
 
       subs.forEach(sub => {
         const option = document.createElement("option");
@@ -1856,22 +1933,29 @@
         const nombre = String(p.nombre || "").toLowerCase();
         const codigo = String(p.codigo || "").toLowerCase();
         const referencia = String(p.referencia || "").toLowerCase();
-        const categoria = String(p.subCategory || "").toLowerCase();
+        const subcategoria = String(p.subCategory || "").toLowerCase();
+        const maincategory = String(p.mainCategory || "").toLowerCase();
 
-        const searchOk = !search || nombre.includes(search) || codigo.includes(search) || referencia.includes(search) || categoria.includes(search);
-        
-        if (search) return searchOk;
+        // Si hay texto en el buscador, priorizamos la coincidencia global sin restringir por selects
+        if (search) {
+          const matchSearch = nombre.includes(search) || codigo.includes(search) || referencia.includes(search) || subcategoria.includes(search) || maincategory.includes(search);
+          return matchSearch;
+        }
 
+        // Si no hay búsqueda por texto, aplicamos los filtros de categoría y subcategoría
         const mainOk = !main || p.mainCategory === main;
         const subOk = !sub || p.subCategory === sub;
 
-        return searchOk && mainOk && subOk;
+        return mainOk && subOk;
       });
 
-      filtered.sort((a,b) => {
-        const ia = ORDEN_SUBCATEGORIAS_ALIMENTOS.indexOf(a.subCategory);
-        const ib = ORDEN_SUBCATEGORIAS_ALIMENTOS.indexOf(b.subCategory);
-        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      filtered.sort((a, b) => {
+        const ia = ORDEN_SUBCATEGORIAS_CUIDADO_PERSONAL.indexOf(a.subCategory);
+        const ib = ORDEN_SUBCATEGORIAS_CUIDADO_PERSONAL.indexOf(b.subCategory);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.subCategory.localeCompare(b.subCategory);
       });
 
       renderProducts(filtered);
