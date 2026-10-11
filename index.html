@@ -301,6 +301,141 @@
     }
 
     /* =========================================================
+       ESTILOS REDISEÑADOS MÓDULO FINANCIERO ADMIN
+    ========================================================= */
+    .admin-finance-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+      padding: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .admin-finance-header {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 0.75rem;
+    }
+
+    .admin-section-box {
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .admin-section-box h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin-bottom: 0.35rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .admin-section-box p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .admin-form-grid {
+      display: grid;
+      grid-template-columns: 200px 1fr auto;
+      gap: 1rem;
+      align-items: flex-end;
+    }
+
+    @media (max-width: 768px) {
+      .admin-form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .admin-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .admin-input-group label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .admin-input-group input {
+      padding: 0.6rem 0.8rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      background: white;
+      outline: none;
+    }
+
+    .admin-btn-primary {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 0.65rem 1.25rem;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: background 0.2s;
+    }
+
+    .admin-btn-primary:hover {
+      background: #0f172a;
+    }
+
+    .admin-table-wrapper {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: white;
+      margin-top: 0.75rem;
+    }
+
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+
+    .admin-table th {
+      background: #f1f5f9;
+      color: var(--text-main);
+      font-weight: 700;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .admin-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    .admin-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* =========================================================
        FILTROS
     ========================================================= */
     .filter-card {
@@ -736,7 +871,6 @@
       background: white;
     }
 
-    /* COMPOSICIÓN TIPO DE DOCUMENTO Y RIF / CÉDULA */
     .doc-type-group {
       display: flex;
       gap: 0.35rem;
@@ -754,7 +888,6 @@
       flex: 1;
     }
 
-    /* ESTILOS PARA SUGERENCIAS DE CLIENTES POR NOMBRE */
     .client-suggestions-container {
       position: absolute;
       top: 100%;
@@ -890,33 +1023,31 @@
 
     <!-- CONTENIDO -->
     <main class="main-content">
-      <!-- MÓDULO EXCLUSIVO PARA ADMIN GENERAL: GESTIÓN FINANCIERA & PREMIUM SOFT -->
-      <div id="modulo-finanzas-admin" style="display: none;" class="p-4 bg-white rounded-lg shadow border border-gray-200">
-        <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">
-          🏦 Gestión de Cuentas y Pagos (Admin General)
-        </h2>
+      <!-- MÓDULO EXCLUSIVO PARA ADMIN GENERAL: GESTIÓN FINANCIERA & PREMIUM SOFT (REDISEÑADO) -->
+      <div id="modulo-finanzas-admin" style="display: none;" class="admin-finance-card">
+        <div class="admin-finance-header">
+          <i class="fa-solid fa-vault"></i> Gestión Financiera y Cuentas por Cobrar (Admin General)
+        </div>
 
         <!-- SECCIÓN 1: IMPORTAR EXCEL PREMIUM SOFT -->
-        <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <h3 class="font-semibold text-blue-900 mb-2">📥 Importar Facturas desde Excel (Premium Soft)</h3>
-          <p class="text-xs text-blue-700 mb-3">
-            Convierte automáticamente de Bs. a USD ($) según la tasa ingresada, formatea facturas (*, letras o 00 iniciales) y evita la duplicidad de registros.
-          </p>
+        <div class="admin-section-box">
+          <h3><i class="fa-solid fa-file-excel" style="color: #16a34a;"></i> Importar Facturas desde Excel (Premium Soft)</h3>
+          <p>Convierte automáticamente de Bolívares (Bs.) a Dólares ($) según la tasa ingresada, formatea facturas (*, letras o ceros iniciales) y evita la duplicidad de registros.</p>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-            <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">Tasa de Cambio (Bs / $):</label>
-              <input type="number" step="0.01" id="tasa-cambio-excel" placeholder="Ej: 45.50" class="w-full p-2 border rounded text-sm bg-white" />
+          <div class="admin-form-grid">
+            <div class="admin-input-group">
+              <label>Tasa de Cambio (Bs / $)</label>
+              <input type="number" step="0.01" id="tasa-cambio-excel" placeholder="Ej: 45.50" />
+            </div>
+
+            <div class="admin-input-group">
+              <label>Archivo Excel (.XLS / .XLSX)</label>
+              <input type="file" id="archivo-excel-premium" accept=".xls,.xlsx" style="padding: 0.4rem; font-size: 0.85rem;" />
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">Archivo Excel (.XLS / .XLSX):</label>
-              <input type="file" id="archivo-excel-premium" accept=".xls,.xlsx" class="w-full text-sm" />
-            </div>
-
-            <div>
-              <button onclick="procesarExcelPremiumSoft()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm cursor-pointer">
-                Procesar e Importar
+              <button onclick="procesarExcelPremiumSoft()" class="admin-btn-primary">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Procesar e Importar
               </button>
             </div>
           </div>
@@ -924,32 +1055,33 @@
         </div>
 
         <!-- SECCIÓN 2: KARDEX / ESTADO DE CUENTA DE CLIENTE -->
-        <div class="mb-6">
-          <h3 class="font-semibold text-gray-800 mb-2">🔍 Consultar Estado de Cuenta (Kardex)</h3>
-          <div class="flex gap-2 mb-3">
-            <input type="text" id="buscar-rif-kardex" placeholder="Ingrese RIF o Cédula (Ej: J-50005482-3)" class="flex-1 p-2 border rounded text-sm bg-white" />
-            <button onclick="cargarKardexCliente()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold px-4 py-2 rounded text-sm cursor-pointer">
-              Buscar
+        <div class="admin-section-box">
+          <h3><i class="fa-solid fa-address-book" style="color: #2563eb;"></i> Consultar Estado de Cuenta (Kardex)</h3>
+          <p>Consulta el historial detallado de facturas, pagos y notas de cualquier cliente de la base de datos.</p>
+          
+          <div style="display: flex; gap: 0.75rem; max-width: 500px; margin-bottom: 1rem;">
+            <input type="text" id="buscar-rif-kardex" placeholder="Ingrese RIF o Cédula (Ej: J-50005482-3)" style="flex: 1; padding: 0.6rem 0.8rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.9rem; outline: none; background: white;" />
+            <button onclick="cargarKardexCliente()" class="admin-btn-primary" style="padding: 0.6rem 1rem;">
+              <i class="fa-solid fa-search"></i> Buscar
             </button>
           </div>
 
-          <!-- TABLA DE KARDEX -->
-          <div class="overflow-x-auto">
-            <table class="min-w-full bg-white border border-gray-200 text-xs">
-              <thead class="bg-gray-100 border-b">
+          <div class="admin-table-wrapper">
+            <table class="admin-table">
+              <thead>
                 <tr>
-                  <th class="p-2 text-left">Fecha</th>
-                  <th class="p-2 text-left">Tipo</th>
-                  <th class="p-2 text-left">Documento</th>
-                  <th class="p-2 text-right">Monto ($)</th>
-                  <th class="p-2 text-right">Saldo Resultante ($)</th>
-                  <th class="p-2 text-left">Detalle / Tasa</th>
-                  <th class="p-2 text-center">Acciones</th>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Documento</th>
+                  <th style="text-align: right;">Monto ($)</th>
+                  <th style="text-align: right;">Saldo ($)</th>
+                  <th>Detalle / Tasa</th>
+                  <th style="text-align: center;">Acciones</th>
                 </tr>
               </thead>
               <tbody id="tabla-kardex-body">
                 <tr>
-                  <td colspan="7" class="p-4 text-center text-gray-500">Ingrese un RIF para consultar el historial de cuenta.</td>
+                  <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Ingrese un RIF para consultar el historial de cuenta.</td>
                 </tr>
               </tbody>
             </table>
@@ -957,24 +1089,26 @@
         </div>
 
         <!-- SECCIÓN 3: BANDEJA DE PAGOS PENDIENTES DE APROBACIÓN -->
-        <div>
-          <h3 class="font-semibold text-gray-800 mb-2">⏳ Pagos Pendientes por Aprobar</h3>
-          <div class="overflow-x-auto">
-            <table class="min-w-full bg-white border border-gray-200 text-xs">
-              <thead class="bg-yellow-50 border-b">
+        <div class="admin-section-box" style="margin-bottom: 0;">
+          <h3><i class="fa-solid fa-clock-rotate-left" style="color: #d97706;"></i> Pagos Pendientes por Aprobar</h3>
+          <p>Valida o rechaza los reportes de pagos enviados por la fuerza de ventas para impactar el saldo del cliente.</p>
+
+          <div class="admin-table-wrapper">
+            <table class="admin-table">
+              <thead>
                 <tr>
-                  <th class="p-2 text-left">Cliente</th>
-                  <th class="p-2 text-left">RIF</th>
-                  <th class="p-2 text-left">Vendedor</th>
-                  <th class="p-2 text-right">Monto ($)</th>
-                  <th class="p-2 text-left">Referencia / Banco</th>
-                  <th class="p-2 text-left">Fecha Pago</th>
-                  <th class="p-2 text-center">Acción</th>
+                  <th>Cliente</th>
+                  <th>RIF</th>
+                  <th>Vendedor</th>
+                  <th style="text-align: right;">Monto ($)</th>
+                  <th>Referencia / Banco</th>
+                  <th>Fecha Pago</th>
+                  <th style="text-align: center;">Acción</th>
                 </tr>
               </thead>
               <tbody id="tabla-pagos-pendientes-body">
                 <tr>
-                  <td colspan="7" class="p-4 text-center text-gray-500">Cargando pagos pendientes...</td>
+                  <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Cargando pagos pendientes...</td>
                 </tr>
               </tbody>
             </table>
@@ -1314,7 +1448,6 @@
       }
     }
 
-    // Búsqueda y autocompletado seguro por nombre o negocio (Con Caché por índice para evitar errores de sintaxis)
     let clientSearchTimeout = null;
     let clientesCacheBusqueda = [];
 
@@ -1740,12 +1873,10 @@
       if (!doc) return "";
       let docStr = doc.toString().trim();
       
-      // Si empieza con asterisco (*) o con una letra (ej: D), se mantiene idéntico
       if (docStr.startsWith("*") || /^[A-Za-z]/.test(docStr)) {
         return docStr;
       }
       
-      // Si es numérico puro y no empieza con '00', se le anteponen los '00'
       if (/^\d+$/.test(docStr) && !docStr.startsWith("00")) {
         return "00" + docStr;
       }
@@ -1893,12 +2024,12 @@
         return;
       }
 
-      tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center">Buscando historial...</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 1.5rem;">Buscando historial...</td></tr>`;
 
       const { data: cliente } = await _supabase.from("clientes").select("rif_cedula, nombre").ilike("rif_cedula", `%${rifBuscado}%`).limit(1);
 
       if (!cliente || cliente.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-red-500">Cliente no encontrado en la base de datos.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #ef4444; padding: 1.5rem;">Cliente no encontrado en la base de datos.</td></tr>`;
         return;
       }
 
@@ -1912,19 +2043,19 @@
         .limit(20);
 
       if (error || !historial || historial.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">Cliente ${cliente[0].nombre} (${rifOriginal}) no registra movimientos aún.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Cliente ${cliente[0].nombre} (${rifOriginal}) no registra movimientos aún.</td></tr>`;
         return;
       }
 
       tbody.innerHTML = historial.map(m => `
-        <tr class="border-b">
-          <td class="p-2">${new Date(m.created_at).toLocaleDateString()}</td>
-          <td class="p-2 font-bold ${m.tipo_movimiento === 'FACTURA' ? 'text-red-600' : 'text-green-600'}">${m.tipo_movimiento}</td>
-          <td class="p-2 font-mono">${m.referencia_doc}</td>
-          <td class="p-2 text-right font-bold">${m.signo} $${parseFloat(m.monto).toFixed(2)}</td>           <td class="p-2 text-right font-bold text-gray-800">$${parseFloat(m.saldo_resultante).toFixed(2)}</td>
-          <td class="p-2 text-gray-500">${m.observacion || '-'}</td>
-          <td class="p-2 text-center">
-            ${m.lote_importacion ? `<button onclick="revertirMovimiento('${m.id}', '${m.rif_cedula}', ${m.monto}, '${m.signo}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded cursor-pointer">Revertir</button>` : '-'}
+        <tr>
+          <td>${new Date(m.created_at).toLocaleDateString()}</td>
+          <td><strong style="color: ${m.tipo_movimiento === 'FACTURA' ? '#dc2626' : '#16a34a'}">${m.tipo_movimiento}</strong></td>
+          <td><code>${m.referencia_doc}</code></td>
+          <td style="text-align: right; font-weight: bold;">${m.signo} $${parseFloat(m.monto).toFixed(2)}</td>           <td style="text-align: right; font-weight: bold;">$${parseFloat(m.saldo_resultante).toFixed(2)}</td>
+          <td>${m.observacion || '-'}</td>
+          <td style="text-align: center;">
+            ${m.lote_importacion ? `<button onclick="alert('Lote: ${m.lote_importacion}')" style="background:#fee2e2; color:#b91c1c; border:none; padding:3px 8px; border-radius:4px; cursor:pointer;">Ver Lote</button>` : '-'}
           </td>
         </tr>
       `).join("");
@@ -1941,20 +2072,20 @@
         .order("created_at", { ascending: false });
 
       if (error || !pagos || pagos.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">No hay pagos pendientes por aprobar.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No hay pagos pendientes por aprobar.</td></tr>`;
         return;
       }
 
       tbody.innerHTML = pagos.map(p => `
-        <tr class="border-b">
-          <td class="p-2 font-semibold">${p.nombre_cliente}</td>
-          <td class="p-2">${p.rif_cedula}</td>
-          <td class="p-2">${p.vendedor_usuario}</td>           <td class="p-2 text-right font-bold text-green-600">$${parseFloat(p.monto).toFixed(2)}</td>
-          <td class="p-2">${p.numero_referencia} (${p.banco || 'N/A'})</td>
-          <td class="p-2">${p.fecha_pago}</td>
-          <td class="p-2 text-center flex justify-center gap-1">
-            <button onclick="procesarPago('${p.id}', '${p.rif_cedula}', ${p.monto}, '${p.numero_referencia}', 'aprobado')" class="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs cursor-pointer">Aprobar</button>
-            <button onclick="procesarPago('${p.id}', '${p.rif_cedula}', ${p.monto}, '${p.numero_referencia}', 'rechazado')" class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs cursor-pointer">Rechazar</button>
+        <tr>
+          <td><strong>${escapeHtml(p.nombre_cliente)}</strong></td>
+          <td>${p.rif_cedula}</td>
+          <td>${p.vendedor_usuario}</td>           <td style="text-align: right; font-weight: bold; color: #16a34a;">$${parseFloat(p.monto).toFixed(2)}</td>
+          <td>${p.numero_referencia} (${p.banco || 'N/A'})</td>
+          <td>${p.fecha_pago}</td>
+          <td style="text-align: center;">
+            <button onclick="procesarPago('${p.id}', '${p.rif_cedula}', ${p.monto}, '${p.numero_referencia}', 'aprobado')" style="background:#16a34a; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.75rem;">Aprobar</button>
+            <button onclick="procesarPago('${p.id}', '${p.rif_cedula}', ${p.monto}, '${p.numero_referencia}', 'rechazado')" style="background:#dc2626; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.75rem;">Rechazar</button>
           </td>
         </tr>
       `).join("");
