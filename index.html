@@ -8,6 +8,9 @@
   <!-- SUPABASE -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+  <!-- LIBRERÍA SHEETJS PARA LEER EXCEL EN EL NAVEGADOR -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
   <!-- FONT AWESOME -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -887,6 +890,98 @@
 
     <!-- CONTENIDO -->
     <main class="main-content">
+      <!-- MÓDULO EXCLUSIVO PARA ADMIN GENERAL: GESTIÓN FINANCIERA & PREMIUM SOFT -->
+      <div id="modulo-finanzas-admin" style="display: none;" class="p-4 bg-white rounded-lg shadow border border-gray-200">
+        <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">
+          🏦 Gestión de Cuentas y Pagos (Admin General)
+        </h2>
+
+        <!-- SECCIÓN 1: IMPORTAR EXCEL PREMIUM SOFT -->
+        <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h3 class="font-semibold text-blue-900 mb-2">📥 Importar Facturas desde Excel (Premium Soft)</h3>
+          <p class="text-xs text-blue-700 mb-3">
+            Convierte automáticamente de Bs. a USD ($) según la tasa ingresada, formatea facturas (*, letras o 00 iniciales) y evita la duplicidad de registros.
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Tasa de Cambio (Bs / $):</label>
+              <input type="number" step="0.01" id="tasa-cambio-excel" placeholder="Ej: 45.50" class="w-full p-2 border rounded text-sm bg-white" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">Archivo Excel (.XLS / .XLSX):</label>
+              <input type="file" id="archivo-excel-premium" accept=".xls,.xlsx" class="w-full text-sm" />
+            </div>
+
+            <div>
+              <button onclick="procesarExcelPremiumSoft()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm cursor-pointer">
+                Procesar e Importar
+              </button>
+            </div>
+          </div>
+          <div id="status-importacion-excel" class="mt-2 text-xs font-bold"></div>
+        </div>
+
+        <!-- SECCIÓN 2: KARDEX / ESTADO DE CUENTA DE CLIENTE -->
+        <div class="mb-6">
+          <h3 class="font-semibold text-gray-800 mb-2">🔍 Consultar Estado de Cuenta (Kardex)</h3>
+          <div class="flex gap-2 mb-3">
+            <input type="text" id="buscar-rif-kardex" placeholder="Ingrese RIF o Cédula (Ej: J-50005482-3)" class="flex-1 p-2 border rounded text-sm bg-white" />
+            <button onclick="cargarKardexCliente()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold px-4 py-2 rounded text-sm cursor-pointer">
+              Buscar
+            </button>
+          </div>
+
+          <!-- TABLA DE KARDEX -->
+          <div class="overflow-x-auto">
+            <table class="min-w-full bg-white border border-gray-200 text-xs">
+              <thead class="bg-gray-100 border-b">
+                <tr>
+                  <th class="p-2 text-left">Fecha</th>
+                  <th class="p-2 text-left">Tipo</th>
+                  <th class="p-2 text-left">Documento</th>
+                  <th class="p-2 text-right">Monto ($)</th>
+                  <th class="p-2 text-right">Saldo Resultante ($)</th>
+                  <th class="p-2 text-left">Detalle / Tasa</th>
+                  <th class="p-2 text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tabla-kardex-body">
+                <tr>
+                  <td colspan="7" class="p-4 text-center text-gray-500">Ingrese un RIF para consultar el historial de cuenta.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SECCIÓN 3: BANDEJA DE PAGOS PENDIENTES DE APROBACIÓN -->
+        <div>
+          <h3 class="font-semibold text-gray-800 mb-2">⏳ Pagos Pendientes por Aprobar</h3>
+          <div class="overflow-x-auto">
+            <table class="min-w-full bg-white border border-gray-200 text-xs">
+              <thead class="bg-yellow-50 border-b">
+                <tr>
+                  <th class="p-2 text-left">Cliente</th>
+                  <th class="p-2 text-left">RIF</th>
+                  <th class="p-2 text-left">Vendedor</th>
+                  <th class="p-2 text-right">Monto ($)</th>
+                  <th class="p-2 text-left">Referencia / Banco</th>
+                  <th class="p-2 text-left">Fecha Pago</th>
+                  <th class="p-2 text-center">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="tabla-pagos-pendientes-body">
+                <tr>
+                  <td colspan="7" class="p-4 text-center text-gray-500">Cargando pagos pendientes...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- FILTROS -->
       <div class="filter-card" id="filterCard">
         <div class="search-box">
@@ -1389,6 +1484,9 @@
         adminBtn.style.display = "none";
       }
 
+      // ACTIVAR ACCESO FINANCIERO EXCLUSIVO PARA ADMIN GENERAL
+      verificarAccesoFinanciero(username);
+
       loadProducts();
       iniciarMonitoreoAcceso();
     }
@@ -1619,6 +1717,278 @@
     }
 
     /* =========================================================
+       NUEVO MÓDULO FINANCIERO Y PREMIUM SOFT (EXCLUSIVO ADMIN)
+    ========================================================= */
+    function verificarAccesoFinanciero(username) {
+      const moduloFinanzas = document.getElementById("modulo-finanzas-admin");
+      if (!moduloFinanzas) return;
+
+      if (username && username.toLowerCase() === "admin") {
+        moduloFinanzas.style.display = "block";
+        cargarPagosPendientes();
+      } else {
+        moduloFinanzas.style.display = "none";
+      }
+    }
+
+    function normalizarRifCedula(str) {
+      if (!str) return "";
+      return str.toString().toUpperCase().replace(/[-.\s]/g, "").trim();
+    }
+
+    function formatearDocumentoPremiumSoft(doc) {
+      if (!doc) return "";
+      let docStr = doc.toString().trim();
+      
+      // Si empieza con asterisco (*) o con una letra (ej: D), se mantiene idéntico
+      if (docStr.startsWith("*") || /^[A-Za-z]/.test(docStr)) {
+        return docStr;
+      }
+      
+      // Si es numérico puro y no empieza con '00', se le anteponen los '00'
+      if (/^\d+$/.test(docStr) && !docStr.startsWith("00")) {
+        return "00" + docStr;
+      }
+      
+      return docStr;
+    }
+
+    async function procesarExcelPremiumSoft() {
+      const inputTasa = document.getElementById("tasa-cambio-excel");
+      const inputArchivo = document.getElementById("archivo-excel-premium");
+      const statusDiv = document.getElementById("status-importacion-excel");
+
+      const tasa = parseFloat(inputTasa.value);
+      if (!tasa || tasa <= 0) {
+        alert("Por favor, ingrese una tasa de cambio válida (mayor a 0).");
+        return;
+      }
+
+      if (!inputArchivo.files || inputArchivo.files.length === 0) {
+        alert("Por favor, seleccione un archivo Excel exportado de Premium Soft.");
+        return;
+      }
+
+      statusDiv.className = "mt-2 text-xs font-bold text-blue-600";
+      statusDiv.innerText = "Leyendo y procesando archivo Excel...";
+
+      const file = inputArchivo.files[0];
+      const reader = new FileReader();
+
+      reader.onload = async function (e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+
+          const rawJson = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+          let headerIndex = -1;
+          for (let i = 0; i < Math.min(rawJson.length, 10); i++) {
+            if (rawJson[i] && rawJson[i].includes("TIPODOC") && rawJson[i].includes("DOCUMENTO")) {
+              headerIndex = i;
+              break;
+            }
+          }
+
+          if (headerIndex === -1) {
+            alert("Formato de Excel no reconocido. Asegúrese de que sea el Reporte Master De Ventas de Premium Soft.");
+            statusDiv.innerText = "";
+            return;
+          }
+
+          const rows = XLSX.utils.sheet_to_json(worksheet, { range: headerIndex });
+
+          const { data: listaClientes, error: errClientes } = await _supabase.from("clientes").select("rif_cedula, deuda_actual");
+          if (errClientes) throw errClientes;
+
+          const mapaClientes = {};
+          listaClientes.forEach(c => {
+            mapaClientes[normalizarRifCedula(c.rif_cedula)] = {
+              rif_original: c.rif_cedula,
+              deuda_actual: parseFloat(c.deuda_actual || 0)
+            };
+          });
+
+          const loteImportacion = "LOTE_" + new Date().toISOString().replace(/[-:T.]/g, "").slice(0, 14);
+
+          let facturasProcesadas = 0;
+          let facturasOmitidasDuplicadas = 0;
+          let clientesNoEncontrados = 0;
+
+          for (const row of rows) {
+            const codCliente = row["CODCLIENTE"];
+            const numDoc = row["DOCUMENTO"];
+            const totalNetoBs = parseFloat(row["TOTALFINAL"] || 0);
+
+            if (!codCliente || !numDoc || totalNetoBs <= 0) continue;
+
+            const rifNormalizado = normalizarRifCedula(codCliente);
+            const clienteMatch = mapaClientes[rifNormalizado];
+
+            if (!clienteMatch) {
+              clientesNoEncontrados++;
+              continue;
+            }
+
+            const docFormateado = formatearDocumentoPremiumSoft(numDoc);
+
+            const { data: existeDoc } = await _supabase
+              .from("historial_cuentas")
+              .select("id")
+              .eq("rif_cedula", clienteMatch.rif_original)
+              .eq("referencia_doc", docFormateado)
+              .limit(1);
+
+            if (existeDoc && existeDoc.length > 0) {
+              facturasOmitidasDuplicadas++;
+              continue;
+            }
+
+            const montoUSD = parseFloat((totalNetoBs / tasa).toFixed(2));
+            const nuevoSaldo = parseFloat((clienteMatch.deuda_actual + montoUSD).toFixed(2));
+
+            await _supabase.from("historial_cuentas").insert([{
+              rif_cedula: clienteMatch.rif_original,
+              tipo_movimiento: "FACTURA",
+              monto: montoUSD,
+              signo: "+",
+              saldo_resultante: nuevoSaldo,
+              referencia_doc: docFormateado,
+              lote_importacion: loteImportacion,
+              observacion: `Monto Bs: ${totalNetoBs.toLocaleString("es-VE")} \vert{} Tasa: ${tasa}`,
+              creado_por: "admin"
+            }]);
+
+            await _supabase
+              .from("clientes")
+              .update({ deuda_actual: nuevoSaldo })
+              .eq("rif_cedula", clienteMatch.rif_original);
+
+            clienteMatch.deuda_actual = nuevoSaldo;
+            facturasProcesadas++;
+          }
+
+          statusDiv.className = "mt-2 text-xs font-bold text-green-600";
+          statusDiv.innerText = `✅ Importación exitosa. Agregadas: ${facturasProcesadas} | Omitidas (Duplicadas): ${facturasOmitidasDuplicadas} \vert{} No mapeados:${clientesNoEncontrados}`;
+          alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas: ${facturasOmitidasDuplicadas}\nLote asignado:${loteImportacion}`);
+
+        } catch (err) {
+          console.error("Error procesando Excel:", err);
+          statusDiv.className = "mt-2 text-xs font-bold text-red-600";
+          statusDiv.innerText = "❌ Error procesando el archivo: " + err.message;
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    async function cargarKardexCliente() {
+      const rifBuscado = document.getElementById("buscar-rif-kardex").value.trim();
+      const tbody = document.getElementById("tabla-kardex-body");
+
+      if (!rifBuscado) {
+        alert("Ingrese un RIF o Cédula para realizar la consulta.");
+        return;
+      }
+
+      tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center">Buscando historial...</td></tr>`;
+
+      const { data: cliente } = await _supabase.from("clientes").select("rif_cedula, nombre").ilike("rif_cedula", `%${rifBuscado}%`).limit(1);
+
+      if (!cliente || cliente.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-red-500">Cliente no encontrado en la base de datos.</td></tr>`;
+        return;
+      }
+
+      const rifOriginal = cliente[0].rif_cedula;
+
+      const { data: historial, error } = await _supabase
+        .from("historial_cuentas")
+        .select("*")
+        .eq("rif_cedula", rifOriginal)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (error || !historial || historial.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">Cliente ${cliente[0].nombre} (${rifOriginal}) no registra movimientos aún.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = historial.map(m => `
+        <tr class="border-b">
+          <td class="p-2">${new Date(m.created_at).toLocaleDateString()}</td>
+          <td class="p-2 font-bold ${m.tipo_movimiento === 'FACTURA' ? 'text-red-600' : 'text-green-600'}">${m.tipo_movimiento}</td>
+          <td class="p-2 font-mono">${m.referencia_doc}</td>
+          <td class="p-2 text-right font-bold">${m.signo} $${parseFloat(m.monto).toFixed(2)}</td>           <td class="p-2 text-right font-bold text-gray-800">$${parseFloat(m.saldo_resultante).toFixed(2)}</td>
+          <td class="p-2 text-gray-500">${m.observacion || '-'}</td>
+          <td class="p-2 text-center">
+            ${m.lote_importacion ? `<button onclick="revertirMovimiento('${m.id}', '${m.rif_cedula}', ${m.monto}, '${m.signo}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded cursor-pointer">Revertir</button>` : '-'}
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    async function cargarPagosPendientes() {
+      const tbody = document.getElementById("tabla-pagos-pendientes-body");
+      if (!tbody) return;
+
+      const { data: pagos, error } = await _supabase
+        .from("pagos_registrados")
+        .select("*")
+        .eq("estado", "pendiente")
+        .order("created_at", { ascending: false });
+
+      if (error || !pagos || pagos.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500">No hay pagos pendientes por aprobar.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = pagos.map(p => `
+        <tr class="border-b">
+          <td class="p-2 font-semibold">${p.nombre_cliente}</td>
+          <td class="p-2">${p.rif_cedula}</td>
+          <td class="p-2">${p.vendedor_usuario}</td>           <td class="p-2 text-right font-bold text-green-600">$${parseFloat(p.monto).toFixed(2)}</td>
+          <td class="p-2">${p.numero_referencia} (${p.banco || 'N/A'})</td>
+          <td class="p-2">${p.fecha_pago}</td>
+          <td class="p-2 text-center flex justify-center gap-1">
+            <button onclick="procesarPago('${p.id}', '${p.rif_cedula}', ${p.monto}, '${p.numero_referencia}', 'aprobado')" class="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs cursor-pointer">Aprobar</button>
+            <button onclick="procesarPago('${p.id}', '${p.rif_cedula}', ${p.monto}, '${p.numero_referencia}', 'rechazado')" class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs cursor-pointer">Rechazar</button>
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    async function procesarPago(pagoId, rifCedula, montoUSD, refDoc, nuevoEstado) {
+      if (!confirm(`¿Está seguro de marcar este pago como ${nuevoEstado.toUpperCase()}?`)) return;
+
+      if (nuevoEstado === 'aprobado') {
+        const { data: cliente } = await _supabase.from("clientes").select("deuda_actual").eq("rif_cedula", rifCedula).single();
+        const deudaPrev = parseFloat(cliente?.deuda_actual || 0);
+        const nuevoSaldo = parseFloat((deudaPrev - montoUSD).toFixed(2));
+
+        await _supabase.from("historial_cuentas").insert([{
+          rif_cedula: rifCedula,
+          tipo_movimiento: "PAGO",
+          monto: montoUSD,
+          signo: "-",
+          saldo_resultante: nuevoSaldo,
+          referencia_doc: refDoc,
+          observacion: "Pago aprobado por Admin General",
+          creado_por: "admin"
+        }]);
+
+        await _supabase.from("clientes").update({ deuda_actual: nuevoSaldo }).eq("rif_cedula", rifCedula);
+      }
+
+      await _supabase.from("pagos_registrados").update({ estado: nuevoEstado }).eq("id", pagoId);
+
+      alert(`Pago ${nuevoEstado} exitosamente.`);
+      cargarPagosPendientes();
+    }
+
+    /* =========================================================
        ORDEN SUBCATEGORIAS Y PRODUCTOS (CON CACHÉ OPTIMIZADO V3)
     ========================================================= */
     const ORDEN_SUBCATEGORIAS_ALIMENTOS = [
@@ -1661,7 +2031,6 @@
 
     async function loadProducts() {
       try {
-        // 1. Micro-consulta ultraligera para verificar la versión actual en el servidor
         const { data: versionData, error: versionError } = await _supabase
           .from("control_version")
           .select("version")
@@ -1672,17 +2041,12 @@
         const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
         const cachedProducts = localStorage.getItem(CACHE_KEY_PRODUCTS);
 
-        // 2. Si la versión coincide y hay caché local, cargamos de inmediato
         if (cachedProducts && localVersion && Number(localVersion) === servidorVersion) {
-          console.log("Cargando productos desde el caché local (Versión:", servidorVersion, ")");
           allProducts = JSON.parse(cachedProducts);
-          
           processLoadedProducts();
           return;
         }
 
-        // 3. Si cambió la versión o no hay caché, descargamos desde Supabase UNA sola vez
-        console.log("Inventario actualizado o caché vacío. Descargando productos de Supabase...");
         let allData = [];
         let from = 0;
         const step = 1000;
@@ -1706,7 +2070,6 @@
           return { ...p, mainCategory: cat, subCategory: sub };
         });
 
-        // Guardamos en el almacenamiento local del navegador
         localStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(allProducts));
         localStorage.setItem(CACHE_KEY_VERSION, servidorVersion);
 
@@ -1728,7 +2091,6 @@
       updateCartSummary();
     }
 
-    // Verificación silenciosa en segundo plano al enfocar la pestaña
     async function verificarVersionSilenciosa() {
       try {
         const { data, error } = await _supabase
@@ -1742,13 +2104,10 @@
           const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
 
           if (!localVersion || Number(localVersion) < servidorVersion) {
-            console.log("Nueva versión detectada. Actualizando caché...");
             loadProducts();
           }
         }
-      } catch (e) {
-        // Silencioso ante fallos de red momentáneos
-      }
+      } catch (e) {}
     }
 
     window.addEventListener("focus", () => {
@@ -1936,13 +2295,11 @@
         const subcategoria = String(p.subCategory || "").toLowerCase();
         const maincategory = String(p.mainCategory || "").toLowerCase();
 
-        // Si hay texto en el buscador, priorizamos la coincidencia global sin restringir por selects
         if (search) {
           const matchSearch = nombre.includes(search) || codigo.includes(search) || referencia.includes(search) || subcategoria.includes(search) || maincategory.includes(search);
           return matchSearch;
         }
 
-        // Si no hay búsqueda por texto, aplicamos los filtros de categoría y subcategoría
         const mainOk = !main || p.mainCategory === main;
         const subOk = !sub || p.subCategory === sub;
 
