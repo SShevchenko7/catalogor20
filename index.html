@@ -1003,6 +1003,29 @@
     </div>
   </header>
 
+<!-- MENÚ PRINCIPAL DEL ADMIN GENERAL (3 BOTONES) -->
+  <div id="adminDashboardMenu" style="display: none; max-width: 900px; margin: 3rem auto; padding: 2rem; text-align: center;">
+    <h2 style="font-size: 1.8rem; color: var(--primary-color); margin-bottom: 0.5rem;">Panel de Administración General</h2>
+    <p style="color: var(--text-muted); margin-bottom: 2rem;">Seleccione el módulo que desea gestionar:</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
+      <div class="admin-menu-card" onclick="abrirModuloAdmin('ordenes')" style="background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem 1.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+        <i class="fa-solid fa-cart-shopping" style="font-size: 2.5rem; color: var(--accent-color);"></i>
+        <h3 style="font-size: 1.1rem; color: var(--primary-color);">Módulo de Órdenes</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Catálogo, inventario y toma de pedidos</span>
+      </div>
+      <div class="admin-menu-card" onclick="abrirModuloAdmin('pagos')" style="background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem 1.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+        <i class="fa-solid fa-vault" style="font-size: 2.5rem; color: var(--accent-color);"></i>
+        <h3 style="font-size: 1.1rem; color: var(--primary-color);">Módulo de Pagos</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Importación Premium Soft, Kardex y pagos</span>
+      </div>
+      <div class="admin-menu-card" onclick="abrirModuloAdmin('usuarios')" style="background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem 1.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+        <i class="fa-solid fa-users-gear" style="font-size: 2.5rem; color: var(--accent-color);"></i>
+        <h3 style="font-size: 1.1rem; color: var(--primary-color);">Módulo de Usuarios</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Crear, modificar accesos y privilegios</span>
+      </div>
+    </div>
+  </div>
+
   <!-- =========================================================
        APP
   ========================================================= -->
@@ -1610,18 +1633,86 @@
       const nombreCompleto = (currentUser.nombre_completo || "").toLowerCase().trim();
       
       const adminBtn = document.getElementById("btnAdminPanel");
-      
-      if (username === "admin" || rolUser.includes("admin") || nombreCompleto.includes("administrador")) {
-        adminBtn.style.display = "flex";
-      } else {
-        adminBtn.style.display = "none";
+      if (adminBtn) {
+        if (username === "admin" || rolUser.includes("admin") || nombreCompleto.includes("administrador")) {
+          adminBtn.style.display = "flex";
+        } else {
+          adminBtn.style.display = "none";
+        }
       }
 
-      // ACTIVAR ACCESO FINANCIERO EXCLUSIVO PARA ADMIN GENERAL
-      verificarAccesoFinanciero(username);
+      const cartBar = document.getElementById("cartSummaryBar");
 
-      loadProducts();
+      // SI ES ADMIN GENERAL, MOSTRAMOS EL MENÚ DE LOS 3 BOTONES Y OCULTAMOS CATÁLOGO Y BARRA DE PEDIDO
+      if (username === "admin") {
+        const menuAdmin = document.getElementById("adminDashboardMenu");
+        if (menuAdmin) menuAdmin.style.display = "block";
+        
+        const appLayout = document.querySelector(".app-layout");
+        if (appLayout) appLayout.style.display = "none";
+
+        const moduloFinanzas = document.getElementById("modulo-finanzas-admin");
+        if (moduloFinanzas) moduloFinanzas.style.display = "none";
+
+        if (cartBar) cartBar.style.display = "none";
+      } else {
+        // SI ES VENDEDOR U OTRO USUARIO, ENTRA DIRECTO AL CATÁLOGO SIN CAMBIOS
+        const menuAdmin = document.getElementById("adminDashboardMenu");
+        if (menuAdmin) menuAdmin.style.display = "none";
+
+        const appLayout = document.querySelector(".app-layout");
+        if (appLayout) appLayout.style.display = "grid";
+
+        if (cartBar) cartBar.style.display = "flex";
+
+        loadProducts();
+      }
+
       iniciarMonitoreoAcceso();
+    }
+
+    function abrirModuloAdmin(modulo) {
+      const username = currentUser && currentUser.usuario ? currentUser.usuario.toLowerCase().trim() : '';
+      if (username !== 'admin') return;
+
+      const menuAdmin = document.getElementById("adminDashboardMenu");
+      if (menuAdmin) menuAdmin.style.display = "none";
+
+      const appLayout = document.querySelector(".app-layout");
+      const moduloFinanzas = document.getElementById("modulo-finanzas-admin");
+      const cartBar = document.getElementById("cartSummaryBar");
+
+      if (modulo === 'ordenes') {
+        if (appLayout) appLayout.style.display = "grid";
+        if (moduloFinanzas) moduloFinanzas.style.display = "none";
+        if (cartBar) cartBar.style.display = "flex";
+        loadProducts();
+      } else if (modulo === 'pagos') {
+        if (appLayout) appLayout.style.display = "none";
+        if (moduloFinanzas) moduloFinanzas.style.display = "block";
+        if (cartBar) cartBar.style.display = "none";
+        cargarPagosPendientes();
+      } else if (modulo === 'usuarios') {
+        openAdminModal(); 
+        if (menuAdmin) menuAdmin.style.display = "block";
+      }
+    }
+
+    function volverMenuAdmin() {
+      const username = currentUser && currentUser.usuario ? currentUser.usuario.toLowerCase().trim() : '';
+      if (username !== 'admin') return;
+
+      const menuAdmin = document.getElementById("adminDashboardMenu");
+      if (menuAdmin) menuAdmin.style.display = "block";
+
+      const appLayout = document.querySelector(".app-layout");
+      if (appLayout) appLayout.style.display = "none";
+
+      const moduloFinanzas = document.getElementById("modulo-finanzas-admin");
+      if (moduloFinanzas) moduloFinanzas.style.display = "none";
+
+      const cartBar = document.getElementById("cartSummaryBar");
+      if (cartBar) cartBar.style.display = "none";
     }
 
     function iniciarMonitoreoAcceso() {
@@ -2120,7 +2211,7 @@
     }
 
     /* =========================================================
-       ORDEN SUBCATEGORIAS Y PRODUCTOS (CON CACHÉ OPTIMIZADO V3)
+       ORDEN SUBCATEGORIAS Y PRODUCTOS (CARGA DIRECTA DESDE SUPABASE)
     ========================================================= */
     const ORDEN_SUBCATEGORIAS_ALIMENTOS = [
       "ACEITE", "ARROZ", "HARINA MAIZ", "HARINA TRIGO", "PASTA", "AZUCAR", "CAFE", "GRANOS", "MANTEQUILLA", "MAYONESA", "MAYONESA INDUSTRIAL", "SALSA TOMATE", "SALSA INDUSTRIAL", "MOSTAZA", "MOSTAZA INDUSTRIAL", "SALSA BBQ", "PAPAS FRITAS", "SALSA VARIAS", "CARTON HUEVO", "SAL", "QUESO DE AÑO", "UNTAR", "VAINILLAS", "VINAGRES", "CEREALES", "CREMA DE ARROZ", "AVENA", "FOROROS", "LECHE POLVO", "COMPLEMENTO", "COMPOTA", "LECHE CONDENSADA", "LECHE EVAPORADA", "LECHE LIQ/CHICHAS", "BEBIDAS ACHOCOLATADAS", "CREMA DE LECHE", "MASA FACIL", "AJO", "MIEL"
@@ -2129,9 +2220,6 @@
     const ORDEN_SUBCATEGORIAS_CUIDADO_PERSONAL = [
       "HIGIENICO", "JABON DE BAÑO", "LOCION CORPORAL", "TALCO", "TOALLAS HUMEDAS", "TOALLAS SANITARIAS", "VITAMINAS", "PRESERVATIVOS", "JABON LIQUIDO CORP", "ENJUAGUE BUCAL", "VASELINA", "REPELENTE"
     ];
-
-    const CACHE_KEY_PRODUCTS = "rami_cached_products_v3";
-    const CACHE_KEY_VERSION = "rami_catalog_version_v3";
 
     function extraerUnidadesPorCaja(textoReferencia) {
       if (!textoReferencia) return 1;
@@ -2162,22 +2250,6 @@
 
     async function loadProducts() {
       try {
-        const { data: versionData, error: versionError } = await _supabase
-          .from("control_version")
-          .select("version")
-          .eq("id", 1)
-          .single();
-
-        const servidorVersion = versionError || !versionData ? 1 : versionData.version;
-        const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
-        const cachedProducts = localStorage.getItem(CACHE_KEY_PRODUCTS);
-
-        if (cachedProducts && localVersion && Number(localVersion) === servidorVersion) {
-          allProducts = JSON.parse(cachedProducts);
-          processLoadedProducts();
-          return;
-        }
-
         let allData = [];
         let from = 0;
         const step = 1000;
@@ -2201,9 +2273,6 @@
           return { ...p, mainCategory: cat, subCategory: sub };
         });
 
-        localStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(allProducts));
-        localStorage.setItem(CACHE_KEY_VERSION, servidorVersion);
-
         processLoadedProducts();
       } catch (error) {
         console.error("Error al cargar inventario:", error);
@@ -2221,29 +2290,6 @@
       filterProducts();
       updateCartSummary();
     }
-
-    async function verificarVersionSilenciosa() {
-      try {
-        const { data, error } = await _supabase
-          .from("control_version")
-          .select("version")
-          .eq("id", 1)
-          .single();
-
-        if (!error && data) {
-          const servidorVersion = data.version;
-          const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
-
-          if (!localVersion || Number(localVersion) < servidorVersion) {
-            loadProducts();
-          }
-        }
-      } catch (e) {}
-    }
-
-    window.addEventListener("focus", () => {
-      verificarVersionSilenciosa();
-    });
 
     function populateCategoriesUI() {
       const mainSelect = document.getElementById("mainCategorySelect");
