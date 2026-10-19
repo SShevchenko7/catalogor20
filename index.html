@@ -1122,6 +1122,7 @@
             </div>
           </div>
           <div id="status-importacion-excel" class="mt-2 text-xs font-bold"></div>
+          <div id="detalle-importacion-excel" style="margin-top: 0.75rem; overflow-x: auto;"></div>
         </div>
 
         <!-- SECCIÓN 2: KARDEX / ESTADO DE CUENTA DE CLIENTE -->
@@ -1178,7 +1179,7 @@
             </div>
             <div class="admin-input-group">
               <label>Monto Bs. *</label>
-              <input type="text" inputmode="decimal" class="input-monto" autocomplete="off" id="pago-monto" placeholder="Ej: 176.000,00" />
+              <input type="text" inputmode="numeric" class="input-monto" data-modo="caja" autocomplete="off" id="pago-monto" placeholder="0,00" />
             </div>
             <div class="admin-input-group">
               <label>Número de Referencia *</label>
@@ -1657,6 +1658,17 @@
       document.addEventListener("input", (e) => {
         const el = e.target;
         if (!esCampo(el) || e.isComposing) return;
+
+        // Modo "caja": los dígitos entran por la derecha, los dos últimos son los decimales
+        if (el.dataset.modo === "caja") {
+          const digitos = el.value.replace(/\D/g, "").replace(/^0+/, "").slice(0, 15);
+          if (digitos === "") { el.value = ""; return; }
+          const pad = digitos.padStart(3, "0");
+          el.value = pad.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + pad.slice(-2);
+          try { el.setSelectionRange(el.value.length, el.value.length); } catch (err) { /* sin cursor */ }
+          return;
+        }
+
         const val = el.value;
         const pos = el.selectionStart == null ? val.length : el.selectionStart;
         let sig = 0;
@@ -1684,6 +1696,16 @@
       document.addEventListener("keydown", (e) => {
         const el = e.target;
         if (!esCampo(el) || e.ctrlKey || e.metaKey || e.altKey) return;
+        if (el.dataset.modo === "caja") {
+          // El punto y la coma salen solos: se ignoran. Cada dígito se agrega siempre al final.
+          if (e.key === "." || e.key === ",") { e.preventDefault(); return; }
+          if (/^\d$/.test(e.key)) {
+            const largo = el.value.length;
+            const todoSeleccionado = el.selectionStart === 0 && el.selectionEnd === largo;
+            if (!todoSeleccionado) el.setSelectionRange(largo, largo);
+          }
+          return;
+        }
         if (e.key === ".") {
           e.preventDefault();
           if (decimalesDe(el) > 0) {
@@ -1699,6 +1721,13 @@
         const texto = ((e.clipboardData || window.clipboardData).getData("text") || "").trim();
         if (!/^[\d.,\s]+$/.test(texto)) return;
         e.preventDefault();
+        if (el.dataset.modo === "caja") {
+          // Un monto pegado reemplaza todo el valor (176000.50 -> 176.000,50)
+          const n = parseNumeroVE(normalizarNumeroPegado(texto));
+          el.value = isNaN(n) ? "" : String(Math.round(n * 100));
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          return;
+        }
         el.setRangeText(normalizarNumeroPegado(texto), el.selectionStart, el.selectionEnd, "end");
         el.dispatchEvent(new Event("input", { bubbles: true }));
       }, true);
@@ -2550,6 +2579,11 @@
       return str.toString().toUpperCase().replace(/[-.\s]/g, "").trim();
     }
 
+    // Solo la parte numérica del RIF/cédula (sin la letra V, E, J, G, P...) y sin ceros a la izquierda
+    function claveNumericaRif(str) {
+      return normalizarRifCedula(str).replace(/^[A-Z]+/, "").replace(/^0+(?=\d)/, "");
+    }
+
     function formatearDocumentoPremiumSoft(doc) {
       if (!doc) return "";
       let docStr = doc.toString().trim();
@@ -2569,6 +2603,8 @@
       const inputTasa = document.getElementById("tasa-cambio-excel");
       const inputArchivo = document.getElementById("archivo-excel-premium");
       const statusDiv = document.getElementById("status-importacion-excel");
+      const detalleDiv = document.getElementById("detalle-importacion-excel");
+      if (detalleDiv) detalleDiv.innerHTML = "";
 
       const tasa = parseNumeroVE(inputTasa.value);
       if (!tasa || tasa <= 0) {
@@ -2612,15 +2648,20 @@
 
           const rows = XLSX.utils.sheet_to_json(worksheet, { range: headerIndex });
 
-          const { data: listaClientes, error: errClientes } = await _supabase.from("clientes").select("rif_cedula, deuda_actual");
+          const { data: listaClientes, error: errClientes } = await _supabase.from("clientes").select("rif_cedula, nombre, deuda_actual");
           if (errClientes) throw errClientes;
 
-          const mapaClientes = {};
+          const mapaClientes = {};      // coincidencia exacta: letra + número (V5000)
+          const mapaPorNumero = {};     // solo el número (5000) -> clientes que lo tienen
           listaClientes.forEach(c => {
-            mapaClientes[normalizarRifCedula(c.rif_cedula)] = {
+            const datos = {
               rif_original: c.rif_cedula,
+              nombre: c.nombre,
               deuda_actual: parseFloat(c.deuda_actual || 0)
             };
+            mapaClientes[normalizarRifCedula(c.rif_cedula)] = datos;
+            const clave = claveNumericaRif(c.rif_cedula);
+            if (clave) (mapaPorNumero[clave] = mapaPorNumero[clave] || []).push(datos);
           });
 
           const loteImportacion = "LOTE_" + new Date().toISOString().replace(/[-:T.]/g, "").slice(0, 14);
@@ -2628,6 +2669,9 @@
           let facturasProcesadas = 0;
           let facturasOmitidasDuplicadas = 0;
           let clientesNoEncontrados = 0;
+          let asociadasPorNumero = 0;   // la letra del RIF era distinta (V-5000 vs J-5000)
+          const detallePorNumero = {};  // quiénes fueron: RIF del Excel, RIF del sistema, nombre
+          let clientesAmbiguos = 0;     // el mismo número lo tienen varios clientes: no se adivina
 
           for (const row of rows) {
             const codCliente = row["CODCLIENTE"];
@@ -2637,7 +2681,29 @@
             if (!codCliente || !numDoc || totalNetoBs <= 0) continue;
 
             const rifNormalizado = normalizarRifCedula(codCliente);
-            const clienteMatch = mapaClientes[rifNormalizado];
+            let clienteMatch = mapaClientes[rifNormalizado];
+
+            // Si no hay coincidencia exacta, se busca por el número sin la letra
+            if (!clienteMatch) {
+              const candidatos = mapaPorNumero[claveNumericaRif(codCliente)] || [];
+              if (candidatos.length === 1) {
+                clienteMatch = candidatos[0];
+                asociadasPorNumero++;
+                const claveDetalle = String(codCliente).trim() + "|" + clienteMatch.rif_original;
+                if (!detallePorNumero[claveDetalle]) {
+                  detallePorNumero[claveDetalle] = {
+                    rifExcel: String(codCliente).trim(),
+                    rifSistema: clienteMatch.rif_original,
+                    nombre: clienteMatch.nombre || "",
+                    facturas: 0
+                  };
+                }
+                detallePorNumero[claveDetalle].facturas++;
+              } else if (candidatos.length > 1) {
+                clientesAmbiguos++;
+                continue;
+              }
+            }
 
             if (!clienteMatch) {
               clientesNoEncontrados++;
@@ -2684,7 +2750,37 @@
 
           statusDiv.className = "mt-2 text-xs font-bold text-green-600";
           statusDiv.innerText = `✅ Importación exitosa. Agregadas: ${facturasProcesadas} | Omitidas (Duplicadas): ${facturasOmitidasDuplicadas} \vert{} No mapeados:${clientesNoEncontrados}`;
-          alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas: ${facturasOmitidasDuplicadas}\nLote asignado:${loteImportacion}`);
+          const filasAsociadas = Object.values(detallePorNumero);
+          if (detalleDiv && filasAsociadas.length > 0) {
+            const tdEstilo = 'style="padding: 6px 10px; border-bottom: 1px solid var(--border-color);"';
+            detalleDiv.innerHTML = `
+              <div style="font-size: 0.8rem; font-weight: 700; margin-bottom: 0.4rem;">
+                Clientes asociados por número (la letra del RIF era distinta):
+              </div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; font-weight: 400;">
+                <thead>
+                  <tr style="text-align: left; background: #f1f5f9;">
+                    <th style="padding: 6px 10px;">RIF en el Excel</th>
+                    <th style="padding: 6px 10px;">RIF en el sistema</th>
+                    <th style="padding: 6px 10px;">Nombre del cliente</th>
+                    <th style="padding: 6px 10px; text-align: right;">Facturas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${filasAsociadas.map(f => `
+                    <tr>
+                      <td ${tdEstilo}>${escapeHtml(f.rifExcel)}</td>
+                      <td ${tdEstilo}>${escapeHtml(f.rifSistema)}</td>
+                      <td ${tdEstilo}>${escapeHtml(f.nombre)}</td>
+                      <td ${tdEstilo} align="right">${f.facturas}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            `;
+          }
+
+          alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas: ${facturasOmitidasDuplicadas}\nClientes no encontrados: ${clientesNoEncontrados}${asociadasPorNumero ? `\nAsociadas por número (letra del RIF distinta): ${asociadasPorNumero}` : ""}${clientesAmbiguos ? `\nSin cargar, número repetido en varios clientes: ${clientesAmbiguos}` : ""}\nLote asignado:${loteImportacion}`);
 
         } catch (err) {
           console.error("Error procesando Excel:", err);
