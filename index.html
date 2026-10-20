@@ -2735,7 +2735,7 @@
               saldo_resultante: nuevoSaldo,
               referencia_doc: docFormateado,
               lote_importacion: loteImportacion,
-              observacion: `Monto Bs: ${fmtVE(totalNetoBs)} \vert{} Tasa: ${tasa}`,
+              observacion: `Monto Bs: ${fmtVE(totalNetoBs)} \vert{} Tasa:${tasa}`,
               creado_por: "admin"
             }]);
 
@@ -2780,7 +2780,7 @@
             `;
           }
 
-          alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas: ${facturasOmitidasDuplicadas}\nClientes no encontrados: ${clientesNoEncontrados}${asociadasPorNumero ? `\nAsociadas por número (letra del RIF distinta): ${asociadasPorNumero}` : ""}${clientesAmbiguos ? `\nSin cargar, número repetido en varios clientes: ${clientesAmbiguos}` : ""}\nLote asignado:${loteImportacion}`);
+          alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas:${facturasOmitidasDuplicadas}\nClientes no encontrados: ${clientesNoEncontrados}${asociadasPorNumero ? `\nAsociadas por número (letra del RIF distinta): ${asociadasPorNumero}` : ""}${clientesAmbiguos ? `\nSin cargar, número repetido en varios clientes: ${clientesAmbiguos}` : ""}\nLote asignado:${loteImportacion}`);
 
         } catch (err) {
           console.error("Error procesando Excel:", err);
@@ -2847,7 +2847,7 @@
         aprobado:  "background:#dcfce7; color:#15803d;",
         rechazado: "background:#fee2e2; color:#b91c1c;"
       };
-      return `<span class="admin-badge" style="${estilos[estado] || ""}">${escapeHtml(estado)}</span>`;
+      return `<span class="admin-badge" style="${estilos[estado] \vert{}\vert{} ""}">${escapeHtml(estado)}</span>`;
     }
 
     async function cargarHistorialPagos() {
@@ -3042,7 +3042,7 @@
           const { data, error } = await _supabase
             .from("clientes")
             .select("rif_cedula, nombre, deuda_actual")
-            .or(`rif_cedula.ilike.%${q}%,nombre.ilike.%${q}%`)
+            .or(`rif_cedula.ilike.%${q}\%,nombre.ilike.\%${q}%`)
             .order("nombre")
             .limit(8);
 
@@ -3350,7 +3350,7 @@
           signo: "-",
           saldo_resultante: nuevoSaldo,
           referencia_doc: pago.numero_referencia,
-          observacion: `Monto Bs: ${fmtVE(mBs)} \vert{} Tasa: ${fmtVE(tasaFinal)}`,
+          observacion: `Monto Bs: ${fmtVE(mBs)} \vert{} Tasa:${fmtVE(tasaFinal)}`,
           creado_por: currentUser.usuario
         }]);
         if (errHist) {
@@ -3497,7 +3497,7 @@
         aprobado:  "background:#dcfce7; color:#15803d;",
         rechazado: "background:#fee2e2; color:#b91c1c;"
       };
-      return `<span class="admin-badge" style="${estilos[estado] || ""}">${escapeHtml(estado)}</span>`;
+      return `<span class="admin-badge" style="${estilos[estado] \vert{}\vert{} ""}">${escapeHtml(estado)}</span>`;
     };
 
       const historial = lista.slice(0, 50);
@@ -3595,7 +3595,7 @@
     }
 
     /* =========================================================
-       ORDEN SUBCATEGORIAS Y PRODUCTOS (CON CACHÉ OPTIMIZADO V3)
+       ORDEN SUBCATEGORIAS Y PRODUCTOS (SIN CACHÉ LOCAL - ACTUALIZACIÓN INMEDIATA)
     ========================================================= */
     const ORDEN_SUBCATEGORIAS_ALIMENTOS = [
       "ACEITE", "ARROZ", "HARINA MAIZ", "HARINA TRIGO", "PASTA", "AZUCAR", "CAFE", "GRANOS", "MANTEQUILLA", "MAYONESA", "MAYONESA INDUSTRIAL", "SALSA TOMATE", "SALSA INDUSTRIAL", "MOSTAZA", "MOSTAZA INDUSTRIAL", "SALSA BBQ", "PAPAS FRITAS", "SALSA VARIAS", "CARTON HUEVO", "SAL", "QUESO DE AÑO", "UNTAR", "VAINILLAS", "VINAGRES", "CEREALES", "CREMA DE ARROZ", "AVENA", "FOROROS", "LECHE POLVO", "COMPLEMENTO", "COMPOTA", "LECHE CONDENSADA", "LECHE EVAPORADA", "LECHE LIQ/CHICHAS", "BEBIDAS ACHOCOLATADAS", "CREMA DE LECHE", "MASA FACIL", "AJO", "MIEL"
@@ -3604,9 +3604,6 @@
     const ORDEN_SUBCATEGORIAS_CUIDADO_PERSONAL = [
       "HIGIENICO", "JABON DE BAÑO", "LOCION CORPORAL", "TALCO", "TOALLAS HUMEDAS", "TOALLAS SANITARIAS", "VITAMINAS", "PRESERVATIVOS", "JABON LIQUIDO CORP", "ENJUAGUE BUCAL", "VASELINA", "REPELENTE"
     ];
-
-    const CACHE_KEY_PRODUCTS = "rami_cached_products_v3";
-    const CACHE_KEY_VERSION = "rami_catalog_version_v3";
 
     function extraerUnidadesPorCaja(textoReferencia) {
       if (!textoReferencia) return 1;
@@ -3637,24 +3634,6 @@
 
     async function loadProducts(conservarVista = false) {
       try {
-        suscribirCambiosCatalogo();
-        const { data: versionData, error: versionError } = await _supabase
-          .from("control_version")
-          .select("version")
-          .eq("id", 1)
-          .single();
-
-        if (versionError) console.warn("No se pudo leer control_version (¿existe la fila con id = 1?):", versionError.message);
-        const servidorVersion = versionError || !versionData ? 1 : versionData.version;
-        const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
-        const cachedProducts = localStorage.getItem(CACHE_KEY_PRODUCTS);
-
-        if (cachedProducts && localVersion && Number(localVersion) === servidorVersion) {
-          allProducts = JSON.parse(cachedProducts);
-          processLoadedProducts(conservarVista);
-          return;
-        }
-
         let allData = [];
         let from = 0;
         const step = 1000;
@@ -3677,9 +3656,6 @@
           const sub = (p.subcategoria || p.modelo || "GENERAL").toString().toUpperCase().trim();
           return { ...p, mainCategory: cat, subCategory: sub };
         });
-
-        localStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(allProducts));
-        localStorage.setItem(CACHE_KEY_VERSION, servidorVersion);
 
         processLoadedProducts(conservarVista);
       } catch (error) {
@@ -3740,7 +3716,6 @@
 
       populateCategoriesUI();
 
-      // Si el catálogo se actualiza mientras el vendedor trabaja, se queda en la misma categoría
       if (vista && vista.main && [...mainSelect.options].some(o => o.value === vista.main)) {
         mainSelect.value = vista.main;
         updateSubCategoryDropdown();
@@ -3758,58 +3733,6 @@
         mostrarAvisoCatalogo("Catálogo actualizado.");
       }
     }
-
-    let ultimaVerificacionCatalogo = 0;
-    let temporizadorCatalogo = null;
-    let canalCatalogo = null;
-
-    // Compara la versión del catálogo (una sola fila pequeña) y recarga solo si cambió
-    async function verificarVersionSilenciosa(forzar = false, versionConocida = null) {
-      if (!forzar && Date.now() - ultimaVerificacionCatalogo < 15000) return;
-      ultimaVerificacionCatalogo = Date.now();
-      try {
-        let servidorVersion = versionConocida;
-        if (servidorVersion === null || servidorVersion === undefined || isNaN(Number(servidorVersion))) {
-          const { data, error } = await _supabase
-            .from("control_version")
-            .select("version")
-            .eq("id", 1)
-            .single();
-          if (error || !data) return;
-          servidorVersion = data.version;
-        }
-
-        const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
-        if (!localVersion || Number(localVersion) !== Number(servidorVersion)) {
-          loadProducts(true);
-        }
-      } catch (e) {}
-    }
-
-    // Aviso en tiempo real: Supabase avisa a las pantallas abiertas cuando cambia la versión del catálogo.
-    // No consulta nada cada cierto tiempo, así que casi no genera solicitudes.
-    function suscribirCambiosCatalogo() {
-      if (canalCatalogo) return;
-      try {
-        canalCatalogo = _supabase
-          .channel("cambios-catalogo")
-          .on("postgres_changes", { event: "*", schema: "public", table: "control_version" }, (payload) => {
-            const nueva = payload && payload.new ? payload.new.version : null;
-            // Una sincronización grande cambia la versión varias veces seguidas: se espera a que termine
-            clearTimeout(temporizadorCatalogo);
-            temporizadorCatalogo = setTimeout(() => verificarVersionSilenciosa(true, nueva), 5000);
-          })
-          .subscribe();
-      } catch (e) {
-        console.warn("Actualización en tiempo real no disponible:", e);
-      }
-    }
-
-    // Respaldo: al volver a la pestaña o a la app se revisa la versión (máx. 1 vez cada 15 segundos)
-    window.addEventListener("focus", () => verificarVersionSilenciosa());
-    document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) verificarVersionSilenciosa();
-    });
 
     function populateCategoriesUI() {
       const mainSelect = document.getElementById("mainCategorySelect");
