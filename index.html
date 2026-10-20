@@ -2841,13 +2841,13 @@
       `).join("");
     }
 
-    function badgeEstado(estado) {
+  function badgeEstado(estado) {
       const estilos = {
         pendiente: "background:#fef3c7; color:#b45309;",
         aprobado:  "background:#dcfce7; color:#15803d;",
         rechazado: "background:#fee2e2; color:#b91c1c;"
       };
-      return `<span class="admin-badge" style="${estilos[estado] \vert{}\vert{} ""}">${escapeHtml(estado)}</span>`;
+      return `<span class="admin-badge" style="${estilos[estado] || ""}">${escapeHtml(estado)}</span>`;
     }
 
     async function cargarHistorialPagos() {
