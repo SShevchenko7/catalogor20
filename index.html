@@ -3635,21 +3635,23 @@
       }
     }
 
-    async function loadProducts() {
+    async function loadProducts(conservarVista = false) {
       try {
+        suscribirCambiosCatalogo();
         const { data: versionData, error: versionError } = await _supabase
           .from("control_version")
           .select("version")
           .eq("id", 1)
           .single();
 
+        if (versionError) console.warn("No se pudo leer control_version (¿existe la fila con id = 1?):", versionError.message);
         const servidorVersion = versionError || !versionData ? 1 : versionData.version;
         const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
         const cachedProducts = localStorage.getItem(CACHE_KEY_PRODUCTS);
 
         if (cachedProducts && localVersion && Number(localVersion) === servidorVersion) {
           allProducts = JSON.parse(cachedProducts);
-          processLoadedProducts();
+          processLoadedProducts(conservarVista);
           return;
         }
 
@@ -3679,7 +3681,7 @@
         localStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(allProducts));
         localStorage.setItem(CACHE_KEY_VERSION, servidorVersion);
 
-        processLoadedProducts();
+        processLoadedProducts(conservarVista);
       } catch (error) {
         console.error("Error al cargar inventario:", error);
         document.getElementById("productsGrid").innerHTML = `
@@ -3691,33 +3693,122 @@
       }
     }
 
-    function processLoadedProducts() {
-      populateCategoriesUI();
-      filterProducts();
-      updateCartSummary();
+    function mostrarAvisoCatalogo(texto) {
+      let aviso = document.getElementById("aviso-catalogo");
+      if (!aviso) {
+        aviso = document.createElement("div");
+        aviso.id = "aviso-catalogo";
+        aviso.style.cssText = "position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1e293b; color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; z-index: 99999; box-shadow: 0 6px 20px rgba(0,0,0,0.25); max-width: 90vw; text-align: center;";
+        document.body.appendChild(aviso);
+      }
+      aviso.textContent = texto;
+      aviso.style.display = "block";
+      clearTimeout(aviso._t);
+      aviso._t = setTimeout(() => { aviso.style.display = "none"; }, 6000);
     }
 
-    async function verificarVersionSilenciosa() {
+    // El pedido en curso toma los precios, códigos y nombres vigentes del catálogo
+    function refrescarCarritoConCatalogo() {
+      if (!Object.keys(cart).length || !allProducts.length) return 0;
+      const porId = new Map();
+      const porCodigo = new Map();
+      allProducts.forEach(p => {
+        if (p.id !== undefined && p.id !== null) porId.set(String(p.id), p);
+        porCodigo.set(String(p.codigo), p);
+      });
+
+      const nuevo = {};
+      let cambios = 0;
+      Object.entries(cart).forEach(([clave, item]) => {
+        const viejo = item.product || {};
+        const fresco = (viejo.id !== undefined && viejo.id !== null && porId.get(String(viejo.id))) || porCodigo.get(String(viejo.codigo));
+        if (!fresco) { nuevo[clave] = item; return; }
+        if (Number(fresco.precio) !== Number(viejo.precio) || String(fresco.codigo) !== String(viejo.codigo)) cambios++;
+        const claveNueva = `${fresco.codigo}_${item.mode}`;
+        if (nuevo[claveNueva]) nuevo[claveNueva].qty += item.qty;
+        else nuevo[claveNueva] = { ...item, product: fresco };
+      });
+      cart = nuevo;
+      guardarOrdenEnLocalStorage();
+      return cambios;
+    }
+
+    function processLoadedProducts(conservarVista = false) {
+      const mainSelect = document.getElementById("mainCategorySelect");
+      const subSelect = document.getElementById("subCategorySelect");
+      const vista = conservarVista ? { main: mainSelect.value, sub: subSelect.value } : null;
+
+      populateCategoriesUI();
+
+      // Si el catálogo se actualiza mientras el vendedor trabaja, se queda en la misma categoría
+      if (vista && vista.main && [...mainSelect.options].some(o => o.value === vista.main)) {
+        mainSelect.value = vista.main;
+        updateSubCategoryDropdown();
+        if (vista.sub && [...subSelect.options].some(o => o.value === vista.sub)) subSelect.value = vista.sub;
+        updateSidebarActiveStates(vista.main, subSelect.value);
+      }
+
+      const cambios = refrescarCarritoConCatalogo();
+      filterProducts();
+      updateCartSummary();
+
+      if (cambios > 0) {
+        mostrarAvisoCatalogo(`Catálogo actualizado: cambiaron precios o códigos de ${cambios} producto(s) de tu pedido.`);
+      } else if (conservarVista) {
+        mostrarAvisoCatalogo("Catálogo actualizado.");
+      }
+    }
+
+    let ultimaVerificacionCatalogo = 0;
+    let temporizadorCatalogo = null;
+    let canalCatalogo = null;
+
+    // Compara la versión del catálogo (una sola fila pequeña) y recarga solo si cambió
+    async function verificarVersionSilenciosa(forzar = false, versionConocida = null) {
+      if (!forzar && Date.now() - ultimaVerificacionCatalogo < 15000) return;
+      ultimaVerificacionCatalogo = Date.now();
       try {
-        const { data, error } = await _supabase
-          .from("control_version")
-          .select("version")
-          .eq("id", 1)
-          .single();
+        let servidorVersion = versionConocida;
+        if (servidorVersion === null || servidorVersion === undefined || isNaN(Number(servidorVersion))) {
+          const { data, error } = await _supabase
+            .from("control_version")
+            .select("version")
+            .eq("id", 1)
+            .single();
+          if (error || !data) return;
+          servidorVersion = data.version;
+        }
 
-        if (!error && data) {
-          const servidorVersion = data.version;
-          const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
-
-          if (!localVersion || Number(localVersion) < servidorVersion) {
-            loadProducts();
-          }
+        const localVersion = localStorage.getItem(CACHE_KEY_VERSION);
+        if (!localVersion || Number(localVersion) !== Number(servidorVersion)) {
+          loadProducts(true);
         }
       } catch (e) {}
     }
 
-    window.addEventListener("focus", () => {
-      verificarVersionSilenciosa();
+    // Aviso en tiempo real: Supabase avisa a las pantallas abiertas cuando cambia la versión del catálogo.
+    // No consulta nada cada cierto tiempo, así que casi no genera solicitudes.
+    function suscribirCambiosCatalogo() {
+      if (canalCatalogo) return;
+      try {
+        canalCatalogo = _supabase
+          .channel("cambios-catalogo")
+          .on("postgres_changes", { event: "*", schema: "public", table: "control_version" }, (payload) => {
+            const nueva = payload && payload.new ? payload.new.version : null;
+            // Una sincronización grande cambia la versión varias veces seguidas: se espera a que termine
+            clearTimeout(temporizadorCatalogo);
+            temporizadorCatalogo = setTimeout(() => verificarVersionSilenciosa(true, nueva), 5000);
+          })
+          .subscribe();
+      } catch (e) {
+        console.warn("Actualización en tiempo real no disponible:", e);
+      }
+    }
+
+    // Respaldo: al volver a la pestaña o a la app se revisa la versión (máx. 1 vez cada 15 segundos)
+    window.addEventListener("focus", () => verificarVersionSilenciosa());
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) verificarVersionSilenciosa();
     });
 
     function populateCategoriesUI() {
