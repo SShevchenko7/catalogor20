@@ -1162,7 +1162,7 @@
         <!-- SECCIÓN: REPORTAR PAGO (visible para todos los que tienen acceso a pagos) -->
         <div class="admin-section-box">
           <h3><i class="fa-solid fa-money-check-dollar" style="color: #7c3aed;"></i> Reportar Pago</h3>
-          <p>Registre el pago recibido del cliente en Bolívares y adjunte el comprobante (se subirá automáticamente a Cloudinary). Quedará pendiente de validación.</p>
+          <p>Registre el pago recibido del cliente en Bolívares y adjunte el comprobante (la imagen se reduce sola para que sea liviana y se sube a Cloudinary). Quedará pendiente de validación.</p>
 
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; align-items: flex-end;">
             <div class="admin-input-group">
@@ -1196,6 +1196,10 @@
             <div class="admin-input-group">
               <label><i class="fa-solid fa-image"></i> Comprobante (Imagen / PDF)</label>
               <input type="file" id="pago-comprobante" accept="image/*,application/pdf" style="padding: 0.4rem; font-size: 0.85rem;" />
+            </div>
+            <div class="admin-input-group" id="pago-observaciones-grupo" style="grid-column: 1 / -1; display: none;">
+              <label><i class="fa-solid fa-comment-dots"></i> Observaciones (opcional)</label>
+              <textarea id="pago-observaciones" rows="2" maxlength="300" placeholder="Escriba cualquier nota sobre este pago (la verá quien lo apruebe)..." style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px; font-family: inherit; font-size: 0.9rem; resize: vertical;"></textarea>
             </div>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
               <button onclick="registrarPago()" id="pago-btn-registrar" class="admin-btn-primary">
@@ -1242,7 +1246,7 @@
 
         <!-- SECCIÓN: HISTORIAL DE PAGOS REPORTADOS -->
         <div class="admin-section-box finanzas-completa">
-          <h3><i class="fa-solid fa-list-check" style="color: #475569;"></i> Historial de Pagos Reportados (últimos 50)</h3>
+          <h3><i class="fa-solid fa-list-check" style="color: #475569;"></i> Historial de Pagos Reportados (últimos 5)</h3>
           <p>Todos los pagos reportados con su estado: pendientes, aprobados y rechazados.</p>
           <div class="admin-table-wrapper">
             <table class="admin-table">
@@ -1297,7 +1301,10 @@
             </div>
             <div class="admin-input-group">
               <label>Número de Factura</label>
-              <input type="text" id="ajuste-factura" placeholder="Ej: 00012345" />
+              <select id="ajuste-factura-select" onchange="alElegirFacturaAjuste()">
+                <option value="">Seleccione primero un cliente</option>
+              </select>
+              <input type="text" id="ajuste-factura" placeholder="Ej: 00012345" style="display: none; margin-top: 0.4rem;" />
             </div>
             <div class="admin-input-group">
               <label>Monto ($) *</label>
@@ -1347,7 +1354,7 @@
 
         <!-- SECCIÓN: HISTORIAL DE AJUSTES -->
         <div class="admin-section-box finanzas-completa" style="margin-bottom: 0;">
-          <h3><i class="fa-solid fa-clock-rotate-left" style="color: #475569;"></i> Historial de Ajustes (últimos 50)</h3>
+          <h3><i class="fa-solid fa-clock-rotate-left" style="color: #475569;"></i> Historial de Ajustes (últimos 5)</h3>
           <p>Registro de todos los ajustes: pendientes, aprobados y rechazados. Los registros no se editan ni se eliminan.</p>
           <div class="admin-table-wrapper">
             <table class="admin-table">
@@ -1739,30 +1746,105 @@
     const CLOUDINARY_CLOUD_NAME = "eipokryl";
     const CLOUDINARY_UPLOAD_PRESET = "comprobantes_rami";
 
-    async function subirComprobanteACloudinary(fileInputEl) {
-      if (!fileInputEl.files || fileInputEl.files.length === 0) return null;
-      const file = fileInputEl.files[0];
+    // Lee la imagen elegida (el navegador respeta la orientación de la foto)
+    function cargarImagenDesdeArchivo(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("No se pudo leer la imagen")); };
+        img.src = url;
+      });
+    }
 
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
-      try {
-        const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`, {
-          method: "POST",
-          body: formData
-        });
-        const data = await response.json();
-        if (data.secure_url) {
-          return data.secure_url;
-        } else {
-          console.error("Error devuelto por Cloudinary:", data);
-          return null;
-        }
-      } catch (err) {
-        console.error("Excepción al subir comprobante a Cloudinary:", err);
-        return null;
+    // Reduce el comprobante: máximo 1280 px y JPEG liviano (objetivo: ~200 KB o menos)
+    async function comprimirImagenComprobante(file, maxLado = 1280, maxBytes = 200 * 1024) {
+      const img = await cargarImagenDesdeArchivo(file);
+      let escala = Math.min(1, maxLado / Math.max(img.naturalWidth, img.naturalHeight));
+      let calidad = 0.7;
+      let mejor = null;
+      for (let intento = 0; intento < 5; intento++) {
+        const w = Math.max(1, Math.round(img.naturalWidth * escala));
+        const h = Math.max(1, Math.round(img.naturalHeight * escala));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";           // fondo blanco para capturas con transparencia
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", calidad));
+        if (!blob) break;
+        mejor = blob;
+        if (blob.size <= maxBytes) break;
+        calidad = Math.max(0.45, calidad - 0.1);
+        escala *= 0.85;
       }
+      return mejor;
+    }
+
+    // Envía el archivo a Cloudinary mostrando el avance. Devuelve { url } o { error }
+    function subirArchivoACloudinary(blob, nombre, alProgreso) {
+      return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`);
+        xhr.timeout = 60000;
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && alProgreso) alProgreso(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+          let data = {};
+          try { data = JSON.parse(xhr.responseText); } catch (e) { /* respuesta no válida */ }
+          if (data.secure_url) {
+            resolve({ url: data.secure_url });
+          } else {
+            console.error("Error devuelto por Cloudinary:", xhr.status, xhr.responseText);
+            resolve({ error: (data.error && data.error.message) || ("Cloudinary rechazó el archivo (código " + xhr.status + ")") });
+          }
+        };
+        xhr.onerror = () => resolve({ error: "No hay conexión con Cloudinary" });
+        xhr.ontimeout = () => resolve({ error: "La subida tardó demasiado" });
+        const fd = new FormData();
+        fd.append("file", blob, nombre);
+        fd.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+        xhr.send(fd);
+      });
+    }
+
+    async function subirComprobanteACloudinary(fileInputEl, alEstado) {
+      if (!fileInputEl.files || fileInputEl.files.length === 0) return { url: null };
+      const file = fileInputEl.files[0];
+      let blob = file;
+      let nombre = file.name;
+
+      if (file.type.startsWith("image/")) {
+        if (alEstado) alEstado("Reduciendo el tamaño de la imagen...");
+        try {
+          const liviana = await comprimirImagenComprobante(file);
+          if (liviana && liviana.size < file.size) { blob = liviana; nombre = "comprobante.jpg"; }
+        } catch (e) {
+          console.warn("No se pudo reducir la imagen:", e);
+          if (file.size > 3 * 1024 * 1024) {
+            return { error: "no se pudo reducir la imagen y pesa demasiado. Use una captura de pantalla o una foto normal" };
+          }
+        }
+      } else if (file.type === "application/pdf") {
+        if (file.size > 1024 * 1024) {
+          return { error: "el PDF pesa más de 1 MB. Envíe una imagen (captura de pantalla o foto) para que sea liviana" };
+        }
+      } else {
+        return { error: "formato no permitido. Use una imagen o un PDF" };
+      }
+
+      let resultado = { error: "desconocido" };
+      for (let intento = 1; intento <= 2; intento++) {
+        resultado = await subirArchivoACloudinary(blob, nombre, (pct) => {
+          if (alEstado) alEstado(`Subiendo comprobante (${Math.max(1, Math.round(blob.size / 1024))} KB)... ${pct}%`);
+        });
+        if (resultado.url) break;
+        if (intento === 1 && alEstado) alEstado("Reintentando la subida...");
+      }
+      return resultado;
     }
 
     let allProducts = [];
@@ -2103,6 +2185,9 @@
       });
       const titulo = document.getElementById("finanzasTitulo");
       if (titulo) titulo.textContent = completo ? "Gestión Financiera y Cuentas por Cobrar" : "Reportar Pago";
+
+      const grupoObservaciones = document.getElementById("pago-observaciones-grupo");
+      if (grupoObservaciones) grupoObservaciones.style.display = completo ? "none" : "";
 
       const campoVendedor = document.getElementById("pago-vendedor");
       if (campoVendedor) {
@@ -2735,7 +2820,7 @@
               saldo_resultante: nuevoSaldo,
               referencia_doc: docFormateado,
               lote_importacion: loteImportacion,
-              observacion: `Monto Bs: ${fmtVE(totalNetoBs)} \vert{} Tasa:${tasa}`,
+              observacion: `Monto Bs: ${fmtVE(totalNetoBs)} | Tasa: ${tasa}`,
               creado_por: "admin"
             }]);
 
@@ -2749,7 +2834,7 @@
           }
 
           statusDiv.className = "mt-2 text-xs font-bold text-green-600";
-          statusDiv.innerText = `✅ Importación exitosa. Agregadas: ${facturasProcesadas} | Omitidas (Duplicadas): ${facturasOmitidasDuplicadas} \vert{} No mapeados:${clientesNoEncontrados}`;
+          statusDiv.innerText = `✅ Importación exitosa. Agregadas: ${facturasProcesadas} | Omitidas (Duplicadas): ${facturasOmitidasDuplicadas} | No mapeados: ${clientesNoEncontrados}`;
           const filasAsociadas = Object.values(detallePorNumero);
           if (detalleDiv && filasAsociadas.length > 0) {
             const tdEstilo = 'style="padding: 6px 10px; border-bottom: 1px solid var(--border-color);"';
@@ -2813,7 +2898,24 @@
       const cliente = [resultado.cliente];
       const rifOriginal = cliente[0].rif_cedula;
       document.getElementById("buscar-rif-kardex").value = rifOriginal;
-      const filaCliente = `<tr><td colspan="7" style="background:#f1f5f9; font-weight:700; padding:0.75rem 1rem;">Cliente: ${escapeHtml(cliente[0].nombre)} (${escapeHtml(rifOriginal)}) \vert{} Deuda actual:$${parseFloat(cliente[0].deuda_actual || 0).toFixed(2)}</td></tr>`;
+      const deudaNum = Math.round(parseFloat(cliente[0].deuda_actual || 0) * 100) / 100;
+      const deudaColor = deudaNum > 0 ? "#dc2626" : (deudaNum < 0 ? "#16a34a" : "#64748b");
+      const deudaFondo = deudaNum > 0 ? "#fee2e2" : (deudaNum < 0 ? "#dcfce7" : "#e2e8f0");
+      const deudaEtiqueta = deudaNum < 0 ? "SALDO A FAVOR" : "DEUDA ACTUAL";
+      const deudaTexto = "$" + fmtVE(Math.abs(deudaNum));
+      const filaCliente = `<tr><td colspan="7" style="padding: 0;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; background: #f1f5f9; padding: 1rem 1.25rem; border-left: 5px solid ${deudaColor};">
+          <div style="flex: 1; min-width: 220px;">
+            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.06em;">CLIENTE</div>
+            <div style="font-size: 1.05rem; font-weight: 800; color: #0f172a; line-height: 1.3;">${escapeHtml(cliente[0].nombre)}</div>
+            <div style="margin-top: 4px; font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">RIF / Cédula: ${escapeHtml(rifOriginal)}</div>
+          </div>
+          <div style="text-align: right; background: ${deudaFondo}; padding: 0.6rem 1.1rem; border-radius: 10px;">
+            <div style="font-size: 0.7rem; font-weight: 700; color: ${deudaColor}; letter-spacing: 0.06em;">${deudaEtiqueta}</div>
+            <div style="font-size: 1.6rem; font-weight: 800; color: ${deudaColor}; line-height: 1.1;">${deudaTexto}</div>
+          </div>
+        </div>
+      </td></tr>`;
 
       const { data: historial, error } = await _supabase
         .from("historial_cuentas")
@@ -2833,7 +2935,7 @@
           <td><strong style="color: ${m.signo === '+' ? '#dc2626' : '#16a34a'}">${m.tipo_movimiento}</strong></td>
           <td><code>${m.referencia_doc}</code></td>
           <td style="text-align: right; font-weight: bold;">${m.signo} $${parseFloat(m.monto).toFixed(2)}</td> <td style="text-align: right; font-weight: bold;">$${parseFloat(m.saldo_resultante).toFixed(2)}</td>
-          <td>${m.observacion || '-'}</td>
+          <td>${m.observacion ? escapeHtml(String(m.observacion).replace(/(\\v|\u000b)ert\{\}/g, '|')) : '-'}</td>
           <td style="text-align: center;">
             ${m.lote_importacion ? `<button onclick="alert('Lote: ${m.lote_importacion}')" style="background:#fee2e2; color:#b91c1c; border:none; padding:3px 8px; border-radius:4px; cursor:pointer;">Ver Lote</button>` : '-'}
           </td>
@@ -2858,7 +2960,7 @@
         .from("pagos_registrados")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(5);
 
       if (error) {
         tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: #dc2626; padding: 1.5rem;">No se pudo cargar el historial: ${escapeHtml(error.message)}</td></tr>`;
@@ -2939,7 +3041,7 @@
               ${puedeAprobar ? `<input type="text" inputmode="decimal" class="input-monto" autocomplete="off" id="tasa-input-${p.id}" value="${tasaDefault > 0 ? fmtVE(tasaDefault) : ''}" placeholder="Ej. 876,80" style="width: 105px; padding: 4px; text-align: center; border: 1px solid var(--border-color); border-radius: 4px;" oninput="actualizarEquivalenteDolar('${p.id}', ${montoBs})" />` : (p.tasa || '-')}
             </td>
             <td style="text-align: right; font-weight: bold; color: #2563eb;" id="eq-dolar-${p.id}">$${calcDolares}</td>
-            <td>${escapeHtml(p.numero_referencia)} (${escapeHtml(p.banco || "N/A")})</td>
+            <td>${escapeHtml(p.numero_referencia)} (${escapeHtml(p.banco || "N/A")})${p.observaciones ? `<div style="margin-top: 6px; padding: 6px 8px; background: #fef9c3; border-left: 3px solid #eab308; border-radius: 4px; font-size: 0.78rem; font-weight: 400; color: #713f12; white-space: pre-wrap; max-width: 260px;"><strong>Observación:</strong> ${escapeHtml(p.observaciones)}</div>` : ""}</td>
             <td style="text-align: center;">
               ${p.comprobante_url ? `<a href="${escapeHtml(p.comprobante_url)}" target="_blank" style="color:var(--accent-color); font-weight:bold; font-size:0.8rem;"><i class="fa-solid fa-file-arrow-down"></i> Ver</a>` : '-'}
             </td>
@@ -3131,7 +3233,7 @@
       info.style.color = "#16a34a";
       const verDeuda = tienePermiso(currentUser, "modulo_pagos");
       info.textContent = verDeuda
-        ? `Cliente encontrado: ${c.rif_cedula} \vert{} Deuda actual:$${parseFloat(c.deuda_actual || 0).toFixed(2)}`
+        ? `Cliente encontrado: ${c.rif_cedula} | Deuda actual: $${parseFloat(c.deuda_actual || 0).toFixed(2)}`
         : `Cliente encontrado: ${c.rif_cedula}`;
       return c;
     }
@@ -3149,7 +3251,7 @@
         status.textContent = "Espere: el pago se está registrando y ya no se puede cancelar.";
         return;
       }
-      ["pago-rif", "pago-nombre", "pago-monto", "pago-referencia", "pago-banco", "pago-comprobante"].forEach(id => {
+      ["pago-rif", "pago-nombre", "pago-monto", "pago-referencia", "pago-banco", "pago-comprobante", "pago-observaciones"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = "";
       });
@@ -3194,15 +3296,8 @@
       if (!fecha) { setStatus("Seleccione la fecha del pago.", "#dc2626"); return; }
 
       btn.disabled = true;
-      setStatus("Verificando duplicados y subiendo comprobante...", "var(--text-muted)");
-
-      // Subir archivo a Cloudinary en segundo plano (si se seleccionó)
+      setStatus("Verificando que el pago no esté duplicado...", "var(--text-muted)");
       const inputComprobante = document.getElementById("pago-comprobante");
-      let comprobanteUrl = null;
-      if (inputComprobante && inputComprobante.files && inputComprobante.files.length > 0) {
-        setStatus("Subiendo comprobante a Cloudinary...", "var(--text-muted)");
-        comprobanteUrl = await subirComprobanteACloudinary(inputComprobante);
-      }
 
       // Detección de duplicados basada estrictamente en referencia y monto en Bs
       const { data: existentes, error: errDup } = await _supabase
@@ -3240,8 +3335,22 @@
         }
       }
 
+      // Subida del comprobante (si se seleccionó). Si falla, el pago NO se registra sin su evidencia.
+      let comprobanteUrl = null;
+      if (inputComprobante && inputComprobante.files && inputComprobante.files.length > 0) {
+        const subida = await subirComprobanteACloudinary(inputComprobante, (msg) => setStatus(msg, "var(--text-muted)"));
+        if (!subida.url) {
+          btn.disabled = false;
+          setStatus("No se pudo subir el comprobante: " + subida.error + ". El pago NO fue registrado; intente de nuevo.", "#dc2626");
+          return;
+        }
+        comprobanteUrl = subida.url;
+      }
+
       setStatus("Registrando pago...", "var(--text-muted)");
-      const { error } = await _supabase.from("pagos_registrados").insert([{
+      const campoObs = document.getElementById("pago-observaciones");
+      const observaciones = (limitado && campoObs) ? campoObs.value.trim() : "";
+      const registro = {
         nombre_cliente: cliente.nombre,
         rif_cedula: cliente.rif_cedula,
         vendedor_usuario: vendedor,
@@ -3254,13 +3363,19 @@
         fecha_pago: fecha,
         comprobante_url: comprobanteUrl,
         estado: "pendiente"
-      }]);
+      };
+      if (observaciones) registro.observaciones = observaciones;
+
+      const { error } = await _supabase.from("pagos_registrados").insert([registro]);
 
       btn.disabled = false;
 
       if (error) {
         console.error("Error al registrar pago:", error);
-        setStatus("No se pudo registrar el pago: " + error.message, "#dc2626");
+        const pistaObs = (error.message || "").toLowerCase().includes("observaciones")
+          ? " Falta ejecutar el script SQL que agrega la columna observaciones en pagos_registrados."
+          : "";
+        setStatus("No se pudo registrar el pago: " + error.message + pistaObs, "#dc2626");
         return;
       }
 
@@ -3270,6 +3385,7 @@
       document.getElementById("pago-monto").value = "";
       document.getElementById("pago-referencia").value = "";
       document.getElementById("pago-banco").value = "";
+      if (campoObs) campoObs.value = "";
       if (inputComprobante) inputComprobante.value = "";
       if (!limitado) cargarPagosPendientes();
     }
@@ -3350,7 +3466,7 @@
           signo: "-",
           saldo_resultante: nuevoSaldo,
           referencia_doc: pago.numero_referencia,
-          observacion: `Monto Bs: ${fmtVE(mBs)} \vert{} Tasa:${fmtVE(tasaFinal)}`,
+          observacion: `Monto Bs: ${fmtVE(mBs)} | Tasa: ${fmtVE(tasaFinal)}`,
           creado_por: currentUser.usuario
         }]);
         if (errHist) {
@@ -3387,8 +3503,68 @@
       select.innerHTML = AJUSTE_TIPOS[tipo].motivos.map(m => `<option value="${m}">${m}</option>`).join("");
     }
 
+    let ajusteFacturasRif = null;
+
+    function reiniciarSelectorFacturaAjuste() {
+      const sel = document.getElementById("ajuste-factura-select");
+      const inp = document.getElementById("ajuste-factura");
+      if (sel && sel.options.length) sel.selectedIndex = 0;
+      if (inp) { inp.value = ""; inp.style.display = "none"; }
+    }
+
+    function alElegirFacturaAjuste() {
+      const sel = document.getElementById("ajuste-factura-select");
+      const inp = document.getElementById("ajuste-factura");
+      if (!sel || !inp) return;
+      if (sel.value === "__otra__") {
+        inp.value = "";
+        inp.style.display = "";
+        inp.focus();
+      } else {
+        inp.value = sel.value;
+        inp.style.display = "none";
+      }
+    }
+
+    // Carga las facturas ya registradas del cliente para elegirlas de una lista
+    async function cargarFacturasAjuste(rif) {
+      const sel = document.getElementById("ajuste-factura-select");
+      if (!sel || rif === ajusteFacturasRif) return;
+      ajusteFacturasRif = rif;
+
+      if (!rif) {
+        sel.innerHTML = `<option value="">Seleccione primero un cliente</option>`;
+        reiniciarSelectorFacturaAjuste();
+        return;
+      }
+
+      sel.innerHTML = `<option value="">Cargando facturas...</option>`;
+      const { data, error } = await _supabase
+        .from("historial_cuentas")
+        .select("referencia_doc, monto, created_at")
+        .eq("rif_cedula", rif)
+        .eq("tipo_movimiento", "FACTURA")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (ajusteFacturasRif !== rif) return; // se cambió de cliente mientras cargaba
+
+      const vistos = new Set();
+      const facturas = error ? [] : (data || []).filter(f => f.referencia_doc && !vistos.has(f.referencia_doc) && vistos.add(f.referencia_doc));
+      const encabezado = error
+        ? "No se pudieron cargar las facturas"
+        : (facturas.length ? "Seleccione una factura (opcional)" : "Este cliente no tiene facturas registradas");
+
+      sel.innerHTML = `<option value="">${encabezado}</option>`
+        + facturas.map(f => `<option value="${escapeHtml(f.referencia_doc)}">${escapeHtml(f.referencia_doc)} — $${fmtVE(parseFloat(f.monto || 0))} — ${new Date(f.created_at).toLocaleDateString()}</option>`).join("")
+        + `<option value="__otra__">Otra (escribir el número)</option>`;
+      reiniciarSelectorFacturaAjuste();
+    }
+
     async function buscarClienteAjuste() {
-      return await buscarClienteFormulario("ajuste-rif", "ajuste-nombre", "ajuste-cliente-info");
+      const cliente = await buscarClienteFormulario("ajuste-rif", "ajuste-nombre", "ajuste-cliente-info");
+      cargarFacturasAjuste(cliente ? cliente.rif_cedula : null);
+      return cliente;
     }
 
     async function registrarAjuste() {
@@ -3437,7 +3613,7 @@
 
       setStatus("Ajuste registrado como pendiente. Aparece abajo para aprobar o rechazar.", "#16a34a");
       document.getElementById("ajuste-monto").value = "";
-      document.getElementById("ajuste-factura").value = "";
+      reiniciarSelectorFacturaAjuste();
       document.getElementById("ajuste-descripcion").value = "";
       cargarAjustes();
     }
@@ -3500,7 +3676,7 @@
       return `<span class="admin-badge" style="${estilos[estado] || ""}">${escapeHtml(estado)}</span>`;
     };
 
-      const historial = lista.slice(0, 50);
+      const historial = lista.slice(0, 5);
       if (historial.length === 0) {
         tbodyHist.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Aún no hay ajustes registrados.</td></tr>`;
       } else {
