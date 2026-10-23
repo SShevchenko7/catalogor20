@@ -1065,6 +1065,11 @@
         <h3 id="menuCardPagosTitulo" style="font-size: 1.1rem; color: var(--primary-color);">Módulo de Pagos</h3>
         <span id="menuCardPagosDesc" style="font-size: 0.8rem; color: var(--text-muted);">Importación Premium Soft, Kardex y pagos</span>
       </div>
+      <div class="admin-menu-card" id="menuCardEstadoCuenta" onclick="abrirModuloAdmin('estado_cuenta')" style="background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem 1.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+        <i class="fa-solid fa-file-invoice-dollar" style="font-size: 2.5rem; color: var(--accent-color);"></i>
+        <h3 style="font-size: 1.1rem; color: var(--primary-color);">Estado de Cuenta</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Movimientos del cliente y envío por WhatsApp</span>
+      </div>
       <div class="admin-menu-card" id="menuCardUsuarios" onclick="abrirModuloAdmin('usuarios')" style="background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem 1.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column; align-items: center; gap: 1rem;">
         <i class="fa-solid fa-users-gear" style="font-size: 2.5rem; color: var(--accent-color);"></i>
         <h3 style="font-size: 1.1rem; color: var(--primary-color);">Módulo de Usuarios</h3>
@@ -1293,6 +1298,7 @@
                 <option value="FALTANTE">Faltante de despacho (resta)</option>
                 <option value="DEVOLUCION">Devolución de producto (resta)</option>
                 <option value="AUMENTO">Aumento / cargo adicional (suma)</option>
+                <option value="DESCUENTO">Descuento (resta)</option>
               </select>
             </div>
             <div class="admin-input-group">
@@ -1376,6 +1382,64 @@
                   <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Cargando historial...</td>
                 </tr>
               </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÓDULO: ESTADO DE CUENTA -->
+      <div id="modulo-estado-cuenta" style="display: none;" class="admin-finance-card">
+        <div class="admin-finance-header">
+          <i class="fa-solid fa-file-invoice-dollar"></i> <span>Estado de Cuenta</span>
+        </div>
+
+        <div class="admin-section-box">
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; position: relative;">
+            <div style="position: relative; flex: 1; min-width: 220px;">
+              <input type="text" id="ec-buscar" autocomplete="off" placeholder="Buscar cliente por nombre, RIF o cédula" oninput="ecBuscarClientes()" onkeydown="if(event.key==='Enter'){ecBuscarClientes(true);}" style="width: 100%; padding: 0.6rem 0.8rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.9rem; outline: none; background: white;" />
+              <div id="ec-sugerencias" style="display: none; position: absolute; left: 0; right: 0; top: calc(100% + 2px); background: white; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 8px 20px rgba(0,0,0,0.12); max-height: 280px; overflow-y: auto; z-index: 50;"></div>
+            </div>
+            <button onclick="ecBuscarClientes(true)" class="admin-btn-primary" style="padding: 0.6rem 1rem;">
+              <i class="fa-solid fa-magnifying-glass"></i> Consultar
+            </button>
+          </div>
+          <div id="ec-aviso" style="margin-top: 0.5rem; font-size: 0.78rem; color: var(--text-muted);"></div>
+        </div>
+
+        <div id="ec-estado" style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 0.5rem;"></div>
+
+        <div id="ec-resultado" style="display: none;">
+          <div id="ec-cabecera" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.75rem 1.25rem; padding: 1rem 1.25rem; background: #f1f5f9; border-radius: 10px; margin-bottom: 1rem;"></div>
+
+          <div id="ec-saldo" style="margin-bottom: 1rem;"></div>
+
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.75rem;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; font-size: 0.85rem;">
+              <label style="display: flex; align-items: center; gap: 6px;">
+                Tasa del día (Bs/$)
+                <input type="text" inputmode="decimal" id="ec-tasa" autocomplete="off" placeholder="Opcional" oninput="ecRenderEstado()" style="width: 105px; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: white;" />
+                <span id="ec-tasa-bs" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); white-space: nowrap;"></span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px;">
+                Mostrar
+                <select id="ec-limite" onchange="ecRenderMovimientos()" style="padding: 0.3rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: white;">
+                  <option value="5" selected>últimos 5</option>
+                  <option value="10">últimos 10</option>
+                  <option value="20">últimos 20</option>
+                  <option value="50">últimos 50</option>
+                  <option value="0">todos</option>
+                </select>
+              </label>
+            </div>
+            <button onclick="ecEnviarWhatsApp()" class="admin-btn-primary" style="padding: 0.6rem 1rem; background: #16a34a;">
+              <i class="fa-brands fa-whatsapp"></i> Enviar por WhatsApp
+            </button>
+          </div>
+
+          <div class="admin-table-wrapper">
+            <table class="admin-table">
+              <thead id="ec-thead"></thead>
+              <tbody id="ec-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -1578,6 +1642,9 @@
             </label>
             <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; margin:4px 0; cursor:pointer;">
               <input type="checkbox" id="perm-aprobar_pagos" style="width:auto; margin:0;"> Puede aprobar / rechazar pagos y ajustes
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; margin:4px 0; cursor:pointer;">
+              <input type="checkbox" id="perm-estado_cuenta" style="width:auto; margin:0;"> Acceso al módulo de Estado de Cuenta
             </label>
             <p style="font-size:0.75rem; color:var(--text-muted); margin-top:6px;">Al cambiar el rol se cargan los valores por defecto de ese rol; puede ajustarlos antes de guardar. El usuario recibe los cambios en menos de un minuto.</p>
           </div>
@@ -2125,10 +2192,10 @@
        ROLES Y PERMISOS
     ========================================================= */
     const ROLES = {
-      admin:            { etiqueta: "Administrador General",    defaults: { modulo_ordenes: true,  modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: true  } },
-      admin_secundario: { etiqueta: "Admin secundario",         defaults: { modulo_ordenes: false, modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: true  } },
-      asistente:        { etiqueta: "Asistente administrativo", defaults: { modulo_ordenes: false, modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: false } },
-      vendedor:         { etiqueta: "Vendedor",                 defaults: { modulo_ordenes: true,  modulo_pagos: false, reportar_pagos: true, aprobar_pagos: false } }
+      admin:            { etiqueta: "Administrador General",    defaults: { modulo_ordenes: true,  modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: true, estado_cuenta: true } },
+      admin_secundario: { etiqueta: "Admin secundario",         defaults: { modulo_ordenes: false, modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: true, estado_cuenta: true } },
+      asistente:        { etiqueta: "Asistente administrativo", defaults: { modulo_ordenes: false, modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: false, estado_cuenta: true } },
+      vendedor:         { etiqueta: "Vendedor",                 defaults: { modulo_ordenes: true,  modulo_pagos: false, reportar_pagos: true, aprobar_pagos: false, estado_cuenta: true } }
     };
 
     function esAdminGeneral(u) {
@@ -2158,6 +2225,7 @@
       const lista = [];
       if (tienePermiso(u, "modulo_ordenes")) lista.push("ordenes");
       if (tienePermiso(u, "modulo_pagos") || tienePermiso(u, "reportar_pagos")) lista.push("pagos");
+      if (tienePermiso(u, "estado_cuenta")) lista.push("estado_cuenta");
       if (esAdminGeneral(u)) lista.push("usuarios");
       return lista;
     }
@@ -2167,7 +2235,7 @@
     }
 
     function mostrarTarjetasMenu(modulos) {
-      [["ordenes", "menuCardOrdenes"], ["pagos", "menuCardPagos"], ["usuarios", "menuCardUsuarios"]].forEach(([modulo, id]) => {
+      [["ordenes", "menuCardOrdenes"], ["pagos", "menuCardPagos"], ["estado_cuenta", "menuCardEstadoCuenta"], ["usuarios", "menuCardUsuarios"]].forEach(([modulo, id]) => {
         const el = document.getElementById(id);
         if (el) el.style.display = modulos.includes(modulo) ? "flex" : "none";
       });
@@ -2229,11 +2297,14 @@
         loadProducts();
       } else if (modulos.length === 1 && modulos[0] === "pagos") {
         abrirModuloAdmin("pagos");
+      } else if (modulos.length === 1 && modulos[0] === "estado_cuenta") {
+        abrirModuloAdmin("estado_cuenta");
       } else {
         mostrarTarjetasMenu(modulos);
         if (menuAdmin) menuAdmin.style.display = "block";
         if (appLayout) appLayout.style.display = "none";
         if (moduloFinanzas) moduloFinanzas.style.display = "none";
+        ocultarEstadoCuenta();
         if (cartBar) cartBar.style.display = "none";
       }
 
@@ -2268,6 +2339,7 @@
         if (appLayout) appLayout.style.display = "grid";
         mostrarCatalogoAdmin(true);
         if (moduloFinanzas) moduloFinanzas.style.display = "none";
+        ocultarEstadoCuenta();
         if (cartBar) cartBar.style.display = "flex";
         if (btnVolver) btnVolver.style.display = mostrarVolver;
         loadProducts();
@@ -2275,6 +2347,7 @@
         if (appLayout) appLayout.style.display = "grid";
         mostrarCatalogoAdmin(false);
         if (moduloFinanzas) moduloFinanzas.style.display = "block";
+        ocultarEstadoCuenta();
         if (cartBar) cartBar.style.display = "none";
         if (btnVolver) btnVolver.style.display = mostrarVolver;
         const pagosCompleto = tienePermiso(currentUser, "modulo_pagos");
@@ -2286,6 +2359,13 @@
           cargarAjustes();
           cargarPagosPendientes();
         }
+      } else if (modulo === 'estado_cuenta') {
+        if (appLayout) appLayout.style.display = "grid";
+        mostrarCatalogoAdmin(false);
+        if (moduloFinanzas) moduloFinanzas.style.display = "none";
+        if (cartBar) cartBar.style.display = "none";
+        if (btnVolver) btnVolver.style.display = mostrarVolver;
+        iniciarEstadoCuenta();
       } else if (modulo === 'usuarios') {
         openAdminModal();
         if (menuAdmin) menuAdmin.style.display = "block";
@@ -2307,6 +2387,7 @@
 
       const moduloFinanzas = document.getElementById("modulo-finanzas-admin");
       if (moduloFinanzas) moduloFinanzas.style.display = "none";
+      ocultarEstadoCuenta();
 
       const cartBar = document.getElementById("cartSummaryBar");
       if (cartBar) cartBar.style.display = "none";
@@ -2414,7 +2495,7 @@
       if (esAdminGeneral(u)) {
         return `<span class="admin-badge" style="background:#fef3c7; color:#92400e;">Todos los privilegios</span>`;
       }
-      const items = [["modulo_ordenes", "Órdenes"], ["modulo_pagos", "Pagos completo"], ["reportar_pagos", "Reporta pagos"], ["aprobar_pagos", "Aprueba pagos"]];
+      const items = [["modulo_ordenes", "Órdenes"], ["modulo_pagos", "Pagos completo"], ["reportar_pagos", "Reporta pagos"], ["aprobar_pagos", "Aprueba pagos"], ["estado_cuenta", "Estado de cuenta"]];
       return items.map(([clave, texto]) => tienePermiso(u, clave)
         ? `<span class="admin-badge" style="background:#dcfce7; color:#15803d; margin:1px;">${texto}</span>`
         : `<span class="admin-badge" style="background:#f1f5f9; color:#94a3b8; margin:1px; text-decoration:line-through;">${texto}</span>`
@@ -2510,6 +2591,7 @@
       document.getElementById("perm-modulo_pagos").checked = !!permisos.modulo_pagos;
       document.getElementById("perm-reportar_pagos").checked = !!permisos.reportar_pagos;
       document.getElementById("perm-aprobar_pagos").checked = !!permisos.aprobar_pagos;
+      document.getElementById("perm-estado_cuenta").checked = !!permisos.estado_cuenta;
     }
 
     function leerPermisosForm() {
@@ -2517,7 +2599,8 @@
         modulo_ordenes: document.getElementById("perm-modulo_ordenes").checked,
         modulo_pagos: document.getElementById("perm-modulo_pagos").checked,
         reportar_pagos: document.getElementById("perm-reportar_pagos").checked || document.getElementById("perm-modulo_pagos").checked,
-        aprobar_pagos: document.getElementById("perm-aprobar_pagos").checked
+        aprobar_pagos: document.getElementById("perm-aprobar_pagos").checked,
+        estado_cuenta: document.getElementById("perm-estado_cuenta").checked
       };
     }
 
@@ -2548,7 +2631,8 @@
         modulo_ordenes: tienePermiso(u, "modulo_ordenes"),
         modulo_pagos: tienePermiso(u, "modulo_pagos"),
         reportar_pagos: tienePermiso(u, "reportar_pagos"),
-        aprobar_pagos: tienePermiso(u, "aprobar_pagos")
+        aprobar_pagos: tienePermiso(u, "aprobar_pagos"),
+        estado_cuenta: tienePermiso(u, "estado_cuenta")
       });
       document.getElementById("permBlock").style.display = principal ? "none" : "block";
 
@@ -3493,7 +3577,8 @@
     const AJUSTE_TIPOS = {
       FALTANTE:   { etiqueta: "Faltante de despacho", suma: false, motivos: ["Producto agotado", "Otro"] },
       DEVOLUCION: { etiqueta: "Devolución", suma: false, motivos: ["Error de despacho", "El cliente no desea el producto", "Producto en mal estado", "Otro"] },
-      AUMENTO:    { etiqueta: "Aumento / cargo", suma: true, motivos: ["Cargo adicional", "Corrección de factura", "Otro"] }
+      AUMENTO:    { etiqueta: "Aumento / cargo", suma: true, motivos: ["Cargo adicional", "Corrección de factura", "Otro"] },
+      DESCUENTO:  { etiqueta: "Descuento", suma: false, motivos: ["Pronto Pago"] }
     };
 
     function cargarMotivosAjuste() {
@@ -3768,6 +3853,322 @@
 
       alert(`Ajuste ${nuevoEstado} exitosamente.`);
       cargarAjustes();
+    }
+
+    /* =========================================================
+       ESTADO DE CUENTA
+       - Vendedores: solo ven clientes con vendedor_email = su usuario.
+       - Usuarios con Pagos completo / Admin General: ven todos los clientes.
+    ========================================================= */
+    let ecDatos = null;
+    let ecSugerencias = [];
+    let ecTimer = null;
+
+    function ecEsRestringido() {
+      return !tienePermiso(currentUser, "modulo_pagos");
+    }
+
+    function ocultarEstadoCuenta() {
+      const el = document.getElementById("modulo-estado-cuenta");
+      if (el) el.style.display = "none";
+    }
+
+    function iniciarEstadoCuenta() {
+      ecDatos = null;
+      ecSugerencias = [];
+      const el = document.getElementById("modulo-estado-cuenta");
+      if (el) el.style.display = "block";
+      document.getElementById("ec-buscar").value = "";
+      document.getElementById("ec-sugerencias").style.display = "none";
+      document.getElementById("ec-resultado").style.display = "none";
+      document.getElementById("ec-estado").textContent = "";
+      document.getElementById("ec-aviso").textContent = ecEsRestringido() ? "Se muestran únicamente sus clientes." : "";
+    }
+
+    function ecFecha(valor) {
+      const d = valor ? new Date(valor) : new Date();
+      if (isNaN(d.getTime())) return "-";
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      return `${dd}/${mm}/${d.getFullYear()}`;
+    }
+
+    function ecEtiquetaMov(tipo) {
+      const t = String(tipo || "").toUpperCase();
+      const mapa = { FACTURA: "Factura", PAGO: "Pago", FALTANTE: "Faltante", DEVOLUCION: "Devolución", AUMENTO: "Cargo", DESCUENTO: "Descuento" };
+      return mapa[t] || (tipo || "-");
+    }
+
+    // Lee "Monto Bs: 1.234,56 | Tasa: 45,50" del movimiento (si existe). Nunca se muestra el resto del texto.
+    function ecBsDeMovimiento(m) {
+      const r = /Monto Bs:\s*([\d.,]+)\s*\|\s*Tasa:\s*([\d.,]+)/i.exec(String(m.observacion || ""));
+      if (!r) return null;
+      const bs = numeroDesdeCelda(r[1]);
+      const tasa = numeroDesdeCelda(r[2]);
+      if (!isFinite(bs) || bs <= 0) return null;
+      return { bs, tasa: isFinite(tasa) && tasa > 0 ? tasa : null };
+    }
+
+    function ecBuscarClientes(inmediato) {
+      clearTimeout(ecTimer);
+      const lista = document.getElementById("ec-sugerencias");
+      const q = limpiarTextoBusqueda(document.getElementById("ec-buscar").value);
+      if (q.length < 2) {
+        lista.style.display = "none";
+        if (inmediato) alert("Escriba al menos 2 letras del nombre o el RIF / cédula del cliente.");
+        return;
+      }
+
+      const ejecutar = async () => {
+        let consulta = _supabase
+          .from("clientes")
+          .select("rif_cedula, nombre, sector")
+          .or(`rif_cedula.ilike.%${q}%,nombre.ilike.%${q}%`)
+          .order("nombre")
+          .limit(8);
+        if (ecEsRestringido()) consulta = consulta.eq("vendedor_email", currentUser.usuario);
+
+        const { data, error } = await consulta;
+        const estado = document.getElementById("ec-estado");
+
+        if (error) { lista.style.display = "none"; estado.textContent = "Error al buscar: " + error.message; return; }
+        if (!data || data.length === 0) {
+          lista.style.display = "none";
+          ecSugerencias = [];
+          if (inmediato) estado.textContent = ecEsRestringido() ? "No se encontró un cliente suyo con ese dato." : "Cliente no encontrado.";
+          return;
+        }
+
+        ecSugerencias = data;
+        const exacto = data.find(c => normalizarRifCedula(c.rif_cedula) === normalizarRifCedula(q));
+        if (inmediato && (data.length === 1 || exacto)) {
+          const c = exacto || data[0];
+          lista.style.display = "none";
+          document.getElementById("ec-buscar").value = c.nombre;
+          ecCargarEstado(c.rif_cedula);
+          return;
+        }
+
+        estado.textContent = "";
+        lista.innerHTML = data.map((c, i) => `
+          <div onmousedown="event.preventDefault(); ecSeleccionar(${i})" style="padding: 0.55rem 0.8rem; cursor: pointer; border-bottom: 1px solid var(--border-color); font-size: 0.85rem;">
+            <strong>${escapeHtml(c.nombre)}</strong><br>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(c.rif_cedula)}${c.sector ? " · " + escapeHtml(c.sector) : ""}</span>
+          </div>`).join("");
+        lista.style.display = "block";
+      };
+
+      if (inmediato) ejecutar(); else ecTimer = setTimeout(ejecutar, 300);
+    }
+
+    function ecSeleccionar(i) {
+      const c = ecSugerencias[i];
+      if (!c) return;
+      document.getElementById("ec-sugerencias").style.display = "none";
+      document.getElementById("ec-buscar").value = c.nombre;
+      ecCargarEstado(c.rif_cedula);
+    }
+
+    async function ecCargarEstado(rif) {
+      const estado = document.getElementById("ec-estado");
+      const resultado = document.getElementById("ec-resultado");
+      const campoTasa = document.getElementById("ec-tasa");
+      if (campoTasa) campoTasa.value = "";
+      resultado.style.display = "none";
+      estado.textContent = "Cargando estado de cuenta...";
+
+      // Se vuelve a validar que el cliente pertenezca al vendedor (no solo en el buscador)
+      let qc = _supabase
+        .from("clientes")
+        .select("rif_cedula, nombre, sector, telefono, vendedor_email, deuda_actual")
+        .eq("rif_cedula", rif);
+      if (ecEsRestringido()) qc = qc.eq("vendedor_email", currentUser.usuario);
+      const { data: clientes, error: errCli } = await qc.limit(1);
+      if (errCli || !clientes || clientes.length === 0) {
+        estado.textContent = "Cliente no disponible.";
+        return;
+      }
+      const cliente = clientes[0];
+
+      // Nombre completo del vendedor asignado (nunca el usuario de acceso)
+      let vendedor = "";
+      if (cliente.vendedor_email) {
+        if (currentUser && cliente.vendedor_email === currentUser.usuario && currentUser.nombre_completo) {
+          vendedor = currentUser.nombre_completo;
+        } else {
+          const { data: us } = await _supabase
+            .from("usuarios").select("nombre_completo").eq("usuario", cliente.vendedor_email).limit(1);
+          if (us && us.length > 0) vendedor = us[0].nombre_completo || "";
+        }
+      }
+
+      // Todo el historial (de 1000 en 1000 por el límite de Supabase)
+      const movimientos = [];
+      const PAGINA = 1000;
+      for (let desde = 0; desde < 20000; desde += PAGINA) {
+        const { data, error } = await _supabase
+          .from("historial_cuentas")
+          .select("tipo_movimiento, monto, signo, saldo_resultante, referencia_doc, observacion, created_at")
+          .eq("rif_cedula", cliente.rif_cedula)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(desde, desde + PAGINA - 1);
+        if (error) { estado.textContent = "No se pudo cargar el historial: " + error.message; return; }
+        movimientos.push(...(data || []));
+        if (!data || data.length < PAGINA) break;
+      }
+
+      ecDatos = { cliente, vendedor, movimientos, emision: new Date() };
+      estado.textContent = "";
+      ecRenderEstado();
+      resultado.style.display = "block";
+    }
+
+    function ecRenderEstado() {
+      if (!ecDatos) return;
+      const { cliente, vendedor, emision } = ecDatos;
+
+      const campo = (titulo, valor, sub) => `
+        <div>
+          <div style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.06em;">${titulo}</div>
+          <div style="font-size: 0.98rem; font-weight: 700; color: #0f172a; line-height: 1.3;">${valor}</div>
+          ${sub ? `<div style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">${sub}</div>` : ""}
+        </div>`;
+      document.getElementById("ec-cabecera").innerHTML =
+        campo("CLIENTE", escapeHtml(cliente.nombre), escapeHtml(cliente.rif_cedula)) +
+        campo("VENDEDOR", escapeHtml(vendedor || "No disponible")) +
+        campo("SECTOR / ZONA", escapeHtml(cliente.sector || "-")) +
+        campo("FECHA DE EMISIÓN", ecFecha(emision));
+
+      const deuda = Math.round(parseFloat(cliente.deuda_actual || 0) * 100) / 100;
+      const color = deuda > 0 ? "#dc2626" : (deuda < 0 ? "#16a34a" : "#475569");
+      const fondo = deuda > 0 ? "#fee2e2" : (deuda < 0 ? "#dcfce7" : "#e2e8f0");
+      const etiqueta = deuda > 0 ? "DEUDA PENDIENTE" : (deuda < 0 ? "SALDO A FAVOR" : "AL DÍA");
+      document.getElementById("ec-saldo").innerHTML = `
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; background: ${fondo}; border-left: 8px solid ${color}; border-radius: 10px; padding: 1rem 1.4rem;">
+          <div style="font-size: 0.95rem; font-weight: 800; color: ${color}; letter-spacing: 0.06em;">${etiqueta}</div>
+          <div style="font-size: 2.2rem; font-weight: 900; color: ${color}; line-height: 1;">$${fmtVE(Math.abs(deuda))}</div>
+        </div>`;
+
+      const tasaActual = ecTasaManual();
+      const vistaBs = document.getElementById("ec-tasa-bs");
+      if (vistaBs) {
+        vistaBs.textContent = tasaActual
+          ? `Deuda en Bs.: ${fmtVE(Math.abs(deuda) * tasaActual)}`
+          : "";
+      }
+
+      ecRenderMovimientos();
+    }
+
+    function ecMovimientosVisibles() {
+      if (!ecDatos) return [];
+      const limite = parseInt(document.getElementById("ec-limite").value, 10) || 0;
+      return limite > 0 ? ecDatos.movimientos.slice(0, limite) : ecDatos.movimientos;
+    }
+
+    function ecTasaManual() {
+      const campo = document.getElementById("ec-tasa");
+      if (!campo || !campo.value.trim()) return null;
+      const tasa = parseNumeroVE(campo.value);
+      return Number.isFinite(tasa) && tasa > 0 ? tasa : null;
+    }
+
+    function ecBsCalculado(movimiento, tasa) {
+      if (!tasa || !movimiento) return null;
+      const monto = Math.abs(parseFloat(movimiento.monto || 0));
+      return { bs: Math.round(monto * tasa * 100) / 100, tasa };
+    }
+
+    function ecRenderMovimientos() {
+      if (!ecDatos) return;
+      const thead = document.getElementById("ec-thead");
+      const tbody = document.getElementById("ec-tbody");
+
+      thead.innerHTML = `<tr>
+        <th>Fecha</th>
+        <th>Movimiento</th>
+        <th>Doc.</th>
+        <th style="text-align: right;">Monto ($)</th>
+        <th style="text-align: right;">Saldo ($)</th>
+      </tr>`;
+
+      const movs = ecMovimientosVisibles();
+      if (movs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Este cliente aún no tiene movimientos.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = movs.map(m => {
+        const suma = m.signo === "+";
+        const colorMov = suma ? "#dc2626" : "#16a34a";
+        const saldo = parseFloat(m.saldo_resultante || 0);
+        const colorSaldo = saldo > 0 ? "#dc2626" : (saldo < 0 ? "#16a34a" : "#475569");
+        return `<tr>
+          <td style="white-space: nowrap;">${ecFecha(m.created_at)}</td>
+          <td><strong style="color: ${colorMov};">${escapeHtml(ecEtiquetaMov(m.tipo_movimiento))}</strong></td>
+          <td>${escapeHtml(m.referencia_doc || "-")}</td>
+          <td style="text-align: right; font-weight: 700; color: ${colorMov}; white-space: nowrap;">${suma ? "+" : "-"} $${fmtVE(parseFloat(m.monto || 0))}</td>
+          <td style="text-align: right; font-weight: 700; color: ${colorSaldo}; white-space: nowrap;">$${fmtVE(saldo)}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    // Número de WhatsApp en formato internacional (Venezuela +58 por defecto)
+    function ecTelefonoWA(t) {
+      let d = String(t || "").replace(/\D/g, "");
+      if (!d) return "";
+      if (d.startsWith("00")) d = d.slice(2);
+      if (d.startsWith("58")) return d;
+      if (d.startsWith("0")) d = d.slice(1);
+      return d.length === 10 ? "58" + d : d;
+    }
+
+    // Mensaje de texto (sin imágenes: no consume Supabase ni Cloudinary)
+    function ecEnviarWhatsApp() {
+      if (!ecDatos) return;
+      const { cliente, vendedor, movimientos, emision } = ecDatos;
+      const campoTasa = document.getElementById("ec-tasa");
+      const tasaTexto = campoTasa ? campoTasa.value.trim() : "";
+      const tasa = ecTasaManual();
+      if (tasaTexto && !tasa) {
+        alert("Ingrese una tasa de cambio válida, mayor a cero, o deje la casilla en blanco.");
+        if (campoTasa) campoTasa.focus();
+        return;
+      }
+      const deuda = Math.round(parseFloat(cliente.deuda_actual || 0) * 100) / 100;
+
+      let msg = "*ESTADO DE CUENTA*\n*Comercializadora Rami2020 CA*\n\n";
+      msg += `*Cliente:* ${cliente.nombre}\n`;
+      msg += `Cédula/RIF: ${cliente.rif_cedula}\n`;
+      if (cliente.sector) msg += `*Sector:* ${cliente.sector}\n`;
+      if (vendedor) msg += `*Vendedor:* ${vendedor}\n`;
+      msg += `*Emisión:* ${ecFecha(emision)}\n\n`;
+
+      const saldoBsTexto = tasa ? ` (Bs. ${fmtVE(Math.abs(deuda) * tasa)} a tasa ${fmtVE(tasa)})` : "";
+      if (deuda > 0) msg += `*DEUDA PENDIENTE: $${fmtVE(deuda)}${saldoBsTexto}*\n\n`;
+      else if (deuda < 0) msg += `*SALDO A FAVOR: $${fmtVE(Math.abs(deuda))}${saldoBsTexto}*\n\n`;
+      else msg += `*AL DÍA: $0,00${tasa ? " (Bs. 0,00)" : ""}*\n\n`;
+      if (tasa) msg += `*Tasa del día:* Bs. ${fmtVE(tasa)} por dólar\n\n`;
+
+      const limite = parseInt(document.getElementById("ec-limite").value, 10);
+      const ultimos = limite > 0 ? movimientos.slice(0, limite) : movimientos;
+      if (ultimos.length > 0) {
+        msg += "*Últimos movimientos:*\n\n";
+        ultimos.forEach((m, i) => {
+          msg += `${ecFecha(m.created_at)} · ${ecEtiquetaMov(m.tipo_movimiento)}${m.referencia_doc ? " " + m.referencia_doc : ""}: ${m.signo === "+" ? "+" : "-"}$${fmtVE(parseFloat(m.monto || 0))}`;
+          if (i < ultimos.length - 1) msg += "\n\n";
+        });
+        msg += "\n\n";
+      }
+
+      msg += "*Trabajamos para usted Rami 2020*";
+
+      const tel = ecTelefonoWA(cliente.telefono);
+      if (!tel) alert("Este cliente no tiene teléfono registrado. Elija el contacto dentro de WhatsApp.");
+      window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, "_blank");
+      if (campoTasa) campoTasa.value = "";
+      ecRenderEstado();
     }
 
     /* =========================================================
