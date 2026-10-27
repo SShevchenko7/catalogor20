@@ -399,6 +399,19 @@
       font-weight: 700;
     }
 
+    .filtro-hist { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: flex-end; margin: 0.5rem 0 0.9rem; padding: 0.7rem 0.8rem; background: #f1f5f9; border: 1px solid var(--border-color); border-radius: 10px; }
+    .filtro-hist label { display: block; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; }
+    .filtro-hist input, .filtro-hist select { padding: 0.4rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem; background: white; }
+    .filtro-hist button { padding: 0.45rem 0.9rem; border: none; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; }
+    .filtro-hist .fh-aplicar { background: #1e293b; color: white; }
+    .filtro-hist .fh-limpiar { background: #e2e8f0; color: #334155; }
+    .filtro-hist .fh-info { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; margin-left: auto; }
+    .grupo-pago-cab td { background: #f1f5f9; padding: 0.7rem 0.8rem !important; border-top: 2px solid #cbd5e1; }
+    .grupo-pago-cab:hover td { background: #e2e8f0; }
+    .grupo-pago-cab .chev { display: inline-block; transition: transform 0.15s; margin-right: 6px; }
+    .grupo-pago-cab.abierto .chev { transform: rotate(90deg); }
+    .grupo-pago-cab .gp-badge { display: inline-block; background: #fef3c7; color: #b45309; font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; margin-left: 8px; }
+    .grupo-pago-cab .gp-total { float: right; font-weight: 700; color: #16a34a; font-size: 0.85rem; }
     .admin-btn-primary {
       background: var(--primary-color);
       color: white;
@@ -1251,8 +1264,23 @@
 
         <!-- SECCIÓN: HISTORIAL DE PAGOS REPORTADOS -->
         <div class="admin-section-box finanzas-completa">
-          <h3><i class="fa-solid fa-list-check" style="color: #475569;"></i> Historial de Pagos Reportados (últimos 5)</h3>
+          <h3><i class="fa-solid fa-list-check" style="color: #475569;"></i> Historial de Pagos Reportados <span id="hp-titulo-extra" style="font-weight:600; color:var(--text-muted); font-size:0.85rem;">(últimos 5)</span></h3>
           <p>Todos los pagos reportados con su estado: pendientes, aprobados y rechazados.</p>
+          <div class="filtro-hist">
+            <div><label>Desde (fecha de registro)</label><input type="date" id="hp-desde"></div>
+            <div><label>Hasta</label><input type="date" id="hp-hasta"></div>
+            <div><label>Estado</label>
+              <select id="hp-estado">
+                <option value="">Todos</option>
+                <option value="pendiente">Pendiente</option>
+                <option value="aprobado">Aprobado</option>
+                <option value="rechazado">Rechazado</option>
+              </select>
+            </div>
+            <button type="button" class="fh-aplicar" onclick="cargarHistorialPagos()"><i class="fa-solid fa-filter"></i> Filtrar</button>
+            <button type="button" class="fh-limpiar" onclick="limpiarFiltroHistorialPagos()">Últimos 5</button>
+            <span class="fh-info" id="hp-info"></span>
+          </div>
           <div class="admin-table-wrapper">
             <table class="admin-table">
               <thead>
@@ -1360,8 +1388,23 @@
 
         <!-- SECCIÓN: HISTORIAL DE AJUSTES -->
         <div class="admin-section-box finanzas-completa" style="margin-bottom: 0;">
-          <h3><i class="fa-solid fa-clock-rotate-left" style="color: #475569;"></i> Historial de Ajustes (últimos 5)</h3>
+          <h3><i class="fa-solid fa-clock-rotate-left" style="color: #475569;"></i> Historial de Ajustes <span id="ha-titulo-extra" style="font-weight:600; color:var(--text-muted); font-size:0.85rem;">(últimos 5)</span></h3>
           <p>Registro de todos los ajustes: pendientes, aprobados y rechazados. Los registros no se editan ni se eliminan.</p>
+          <div class="filtro-hist">
+            <div><label>Desde (fecha de registro)</label><input type="date" id="ha-desde"></div>
+            <div><label>Hasta</label><input type="date" id="ha-hasta"></div>
+            <div><label>Estado</label>
+              <select id="ha-estado">
+                <option value="">Todos</option>
+                <option value="pendiente">Pendiente</option>
+                <option value="aprobado">Aprobado</option>
+                <option value="rechazado">Rechazado</option>
+              </select>
+            </div>
+            <button type="button" class="fh-aplicar" onclick="cargarAjustes()"><i class="fa-solid fa-filter"></i> Filtrar</button>
+            <button type="button" class="fh-limpiar" onclick="limpiarFiltroHistorialAjustes()">Últimos 5</button>
+            <span class="fh-info" id="ha-info"></span>
+          </div>
           <div class="admin-table-wrapper">
             <table class="admin-table">
               <thead>
@@ -3036,15 +3079,49 @@
       return `<span class="admin-badge" style="${estilos[estado] || ""}">${escapeHtml(estado)}</span>`;
     }
 
+    // ----- Filtros de fecha/estado para los historiales (prefijo "hp" = pagos, "ha" = ajustes) -----
+    function leerFiltroHistorial(pref) {
+      const desde = (document.getElementById(pref + "-desde") || {}).value || "";
+      const hasta = (document.getElementById(pref + "-hasta") || {}).value || "";
+      const estado = (document.getElementById(pref + "-estado") || {}).value || "";
+      let desdeISO = "", hastaISO = "";
+      if (desde) desdeISO = new Date(desde + "T00:00:00").toISOString();
+      if (hasta) {
+        const d = new Date(hasta + "T00:00:00");
+        d.setDate(d.getDate() + 1); // incluye todo el día "Hasta"
+        hastaISO = d.toISOString();
+      }
+      return { desde, hasta, estado, desdeISO, hastaISO, hay: !!(desde || hasta || estado) };
+    }
+
+    function mostrarInfoFiltroHistorial(pref, f, cantidad) {
+      const titulo = document.getElementById(pref + "-titulo-extra");
+      const info = document.getElementById(pref + "-info");
+      if (titulo) titulo.textContent = f.hay ? "(filtrado)" : "(últimos 5)";
+      if (info) info.textContent = f.hay ? `${cantidad} registro(s) encontrados` : "";
+    }
+
+    function limpiarFiltroHistorialPagos() {
+      ["hp-desde", "hp-hasta", "hp-estado"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+      cargarHistorialPagos();
+    }
+
+    function limpiarFiltroHistorialAjustes() {
+      ["ha-desde", "ha-hasta", "ha-estado"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+      cargarAjustes();
+    }
+
     async function cargarHistorialPagos() {
       const tbody = document.getElementById("tabla-pagos-historial-body");
       if (!tbody) return;
 
-      const { data: pagos, error } = await _supabase
-        .from("pagos_registrados")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(5);
+      const f = leerFiltroHistorial("hp");
+      let consulta = _supabase.from("pagos_registrados").select("*").order("created_at", { ascending: false });
+      if (f.desdeISO) consulta = consulta.gte("created_at", f.desdeISO);
+      if (f.hastaISO) consulta = consulta.lt("created_at", f.hastaISO);
+      if (f.estado) consulta = consulta.eq("estado", f.estado);
+      const { data: pagos, error } = await consulta.limit(f.hay ? 1000 : 5);
+      mostrarInfoFiltroHistorial("hp", f, pagos ? pagos.length : 0);
 
       if (error) {
         tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: #dc2626; padding: 1.5rem;">No se pudo cargar el historial: ${escapeHtml(error.message)}</td></tr>`;
@@ -3110,13 +3187,13 @@
 
       const puedeAprobar = puedeAprobarPagos();
 
-      tbody.innerHTML = pagos.map(p => {
+      const filaPago = (p, gid) => {
         const montoBs = parseFloat(p.monto_bs || 0);
         const tasaDefault = p.tasa ? parseFloat(p.tasa) : (ultimaTasaUsada || 0);
         const calcDolares = tasaDefault > 0 ? (montoBs / tasaDefault).toFixed(2) : "0.00";
 
         return `
-          <tr id="fila-pago-${p.id}">
+          <tr id="fila-pago-${p.id}" class="grupo-pago-fila grupo-pago-${gid}" style="display: none;">
             <td><strong>${escapeHtml(p.nombre_cliente)}</strong></td>
             <td>${escapeHtml(p.rif_cedula)}</td>
             <td>${escapeHtml(p.vendedor_usuario)}</td>
@@ -3138,7 +3215,54 @@
             </td>
           </tr>
         `;
+      };
+
+      // Nombre completo de cada vendedor (si no se encuentra, se muestra el usuario)
+      const nombres = {};
+      const usuariosUnicos = [...new Set(pagos.map(p => p.vendedor_usuario).filter(Boolean))];
+      if (usuariosUnicos.length > 0) {
+        const { data: us } = await _supabase.from("usuarios").select("usuario, nombre_completo").in("usuario", usuariosUnicos);
+        (us || []).forEach(u => { nombres[u.usuario] = u.nombre_completo || u.usuario; });
+      }
+
+      // Agrupar por vendedor
+      const grupos = {};
+      pagos.forEach(p => {
+        const clave = p.vendedor_usuario || "(sin vendedor)";
+        if (!grupos[clave]) grupos[clave] = [];
+        grupos[clave].push(p);
+      });
+      const claves = Object.keys(grupos).sort((a, b) => (nombres[a] || a).localeCompare(nombres[b] || b));
+
+      tbody.innerHTML = claves.map((clave, i) => {
+        const lista = grupos[clave];
+        const gid = "g" + i;
+        const totalBs = lista.reduce((s, p) => s + parseFloat(p.monto_bs || 0), 0);
+        const abierto = gruposPagosAbiertos.has(clave) || claves.length === 1;
+        const cabecera = `
+          <tr class="grupo-pago-cab ${abierto ? "abierto" : ""}" id="cab-${gid}" onclick="toggleGrupoPago('${gid}', '${escapeHtml(clave).replace(/'/g, "&#39;")}')" style="cursor: pointer;">
+            <td colspan="10">
+              <i class="fa-solid fa-chevron-right chev"></i>
+              <strong>${escapeHtml(nombres[clave] || clave)}</strong>
+              <span class="gp-badge">${lista.length} pendiente${lista.length === 1 ? "" : "s"}</span>
+              <span class="gp-total">Total: Bs. ${fmtVE(totalBs)}</span>
+            </td>
+          </tr>`;
+        const filas = lista.map(p => filaPago(p, gid)).join("");
+        return cabecera + (abierto ? filas.replace(/style="display: none;"/g, "") : filas);
       }).join("");
+    }
+
+    // Grupos (vendedores) que están desplegados en "Pagos Pendientes por Aprobar"
+    const gruposPagosAbiertos = new Set();
+
+    function toggleGrupoPago(gid, clave) {
+      const cab = document.getElementById("cab-" + gid);
+      const filas = document.querySelectorAll(".grupo-pago-" + gid);
+      const abrir = !(cab && cab.classList.contains("abierto"));
+      if (cab) cab.classList.toggle("abierto", abrir);
+      filas.forEach(tr => { tr.style.display = abrir ? "" : "none"; });
+      if (abrir) gruposPagosAbiertos.add(clave); else gruposPagosAbiertos.delete(clave);
     }
 
     function actualizarEquivalenteDolar(pagoId, montoBs) {
@@ -3708,11 +3832,19 @@
       const tbodyHist = document.getElementById("tabla-ajustes-historial-body");
       if (!tbodyPend || !tbodyHist) return;
 
-      const { data: ajustes, error } = await _supabase
-        .from("ajustes_cuenta")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200);
+      // Historial: últimos 5 o lo que indique el filtro. Pendientes: siempre todos.
+      const f = leerFiltroHistorial("ha");
+      let consultaHist = _supabase.from("ajustes_cuenta").select("*").order("created_at", { ascending: false });
+      if (f.desdeISO) consultaHist = consultaHist.gte("created_at", f.desdeISO);
+      if (f.hastaISO) consultaHist = consultaHist.lt("created_at", f.hastaISO);
+      if (f.estado) consultaHist = consultaHist.eq("estado", f.estado);
+      const [resHist, resPend] = await Promise.all([
+        consultaHist.limit(f.hay ? 1000 : 5),
+        _supabase.from("ajustes_cuenta").select("*").eq("estado", "pendiente").order("created_at", { ascending: false })
+      ]);
+      const ajustes = resHist.data;
+      const error = resHist.error || resPend.error;
+      mostrarInfoFiltroHistorial("ha", f, ajustes ? ajustes.length : 0);
 
       if (error) {
         const msg = `<tr><td colspan="9" style="text-align: center; color: #dc2626; padding: 1.5rem;">No se pudieron cargar los ajustes: ${escapeHtml(error.message)}</td></tr>`;
@@ -3728,7 +3860,7 @@
       const fechaTxt = (a) => new Date(a.created_at).toLocaleDateString();
 
       const puedeAprobar = puedeAprobarPagos();
-      const pendientes = lista.filter(a => a.estado === "pendiente");
+      const pendientes = resPend.data || [];
       if (pendientes.length === 0) {
         tbodyPend.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No hay ajustes pendientes por aprobar.</td></tr>`;
       } else {
@@ -3761,7 +3893,7 @@
       return `<span class="admin-badge" style="${estilos[estado] || ""}">${escapeHtml(estado)}</span>`;
     };
 
-      const historial = lista.slice(0, 5);
+      const historial = lista;
       if (historial.length === 0) {
         tbodyHist.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Aún no hay ajustes registrados.</td></tr>`;
       } else {
