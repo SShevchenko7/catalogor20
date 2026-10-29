@@ -912,6 +912,15 @@
       background: white;
     }
 
+    .input-group-modal input:disabled,
+    .input-group-modal select:disabled,
+    .input-group-modal textarea:disabled {
+      background: #e2e8f0;
+      color: #334155;
+      cursor: not-allowed;
+      opacity: 1;
+    }
+
     .doc-type-group {
       display: flex;
       gap: 0.35rem;
@@ -1082,6 +1091,11 @@
         <i class="fa-solid fa-file-invoice-dollar" style="font-size: 2.5rem; color: var(--accent-color);"></i>
         <h3 style="font-size: 1.1rem; color: var(--primary-color);">Estado de Cuenta</h3>
         <span style="font-size: 0.8rem; color: var(--text-muted);">Movimientos del cliente y envío por WhatsApp</span>
+      </div>
+      <div class="admin-menu-card" id="menuCardReporteDeuda" onclick="abrirModuloAdmin('reporte_deuda')" style="background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem 1.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: none; flex-direction: column; align-items: center; gap: 1rem;">
+        <i class="fa-solid fa-sack-dollar" style="font-size: 2.5rem; color: var(--accent-color);"></i>
+        <h3 style="font-size: 1.1rem; color: var(--primary-color);">Reporte de Deuda</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Deuda por vendedor y por zona, imprimir y Excel</span>
       </div>
       <div class="admin-menu-card" id="menuCardUsuarios" onclick="abrirModuloAdmin('usuarios')" style="background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem 1.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column; align-items: center; gap: 1rem;">
         <i class="fa-solid fa-users-gear" style="font-size: 2.5rem; color: var(--accent-color);"></i>
@@ -1430,6 +1444,61 @@
         </div>
       </div>
 
+      <!-- MÓDULO: REPORTE DE DEUDA POR VENDEDOR Y ZONA -->
+      <div id="modulo-reporte-deuda" style="display: none;" class="admin-finance-card">
+        <div class="admin-finance-header">
+          <i class="fa-solid fa-sack-dollar"></i> <span>Reporte de Deuda por Vendedor y Zona</span>
+        </div>
+        <div class="admin-section-box">
+          <div class="rd-toolbar">
+            <div class="rd-tabs">
+              <button type="button" id="rd-tab-vendedor" class="activo" onclick="rdCambiarVista('vendedor')">Por vendedor</button>
+              <button type="button" id="rd-tab-zona" onclick="rdCambiarVista('zona')">Por zona</button>
+              <button type="button" id="rd-tab-cobranza" onclick="rdAbrirCobranza()">Cobranza (facturas)</button>
+            </div>
+            <div>
+              <label class="rd-lab" id="rd-filtro-label">Vendedor</label>
+              <select id="rd-filtro" onchange="rdAlCambiarFiltro()"></select>
+            </div>
+            <button type="button" onclick="rdExpandir(true)">Expandir todo</button>
+            <button type="button" onclick="rdExpandir(false)">Contraer todo</button>
+            <button type="button" class="principal" onclick="rdImprimir()"><i class="fa-solid fa-print"></i> Imprimir</button>
+            <button type="button" class="excel" onclick="rdExportarExcel()"><i class="fa-solid fa-file-excel"></i> Excel</button>
+            <button type="button" onclick="rdIniciar()"><i class="fa-solid fa-rotate"></i> Actualizar</button>
+          </div>
+          <div id="rd-cob-controles" class="rd-toolbar" style="display: none; margin-top: 0.6rem;">
+            <div>
+              <label class="rd-lab">Agrupar por</label>
+              <select id="rd-cob-agrupar" onchange="rdCobCambiar()">
+                <option value="vendedor">Vendedor</option>
+                <option value="zona">Zona</option>
+              </select>
+            </div>
+            <div>
+              <label class="rd-lab">Estado de las facturas</label>
+              <select id="rd-cob-estado" onchange="rdCobCambiar()">
+                <option value="">Todas</option>
+                <option value="vencida">Solo vencidas</option>
+                <option value="porvencer">Vencen hoy o por vencer (hasta 2 días)</option>
+                <option value="vigente">Solo vigentes</option>
+              </select>
+            </div>
+            <div>
+              <label class="rd-lab">Ordenar clientes por</label>
+              <select id="rd-cob-orden" onchange="rdCobCambiar()">
+                <option value="deuda">Mayor deuda</option>
+                <option value="vencimiento">Vencimiento más antiguo</option>
+              </select>
+            </div>
+          </div>
+          <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem; color:var(--text-muted); margin-top:0.6rem; cursor:pointer;">
+            <input type="checkbox" id="rd-salto" checked style="width:auto; margin:0;"> Al imprimir, cada vendedor/zona empieza en una página nueva
+          </label>
+          <div id="rd-estado" style="margin-top:0.6rem; font-size:0.85rem; font-weight:700; color:var(--text-muted);"></div>
+          <div id="rd-contenido"></div>
+        </div>
+      </div>
+
       <!-- MÓDULO: ESTADO DE CUENTA -->
       <div id="modulo-estado-cuenta" style="display: none;" class="admin-finance-card">
         <div class="admin-finance-header">
@@ -1554,6 +1623,17 @@
       <div class="modal-body" id="modalCartBody">
         <div class="client-seller-row">
 
+          <!-- BUSCADOR DE CLIENTE (RIF, cédula o nombre) / CLIENTE NUEVO -->
+          <div class="input-group-modal full-width">
+            <label><i class="fa-solid fa-magnifying-glass"></i> BUSCAR CLIENTE (RIF, cédula o nombre) *</label>
+            <div style="display: flex; gap: 0.5rem; align-items: stretch;">
+              <input type="text" id="clienteBuscarInput" placeholder="Escriba el RIF, la cédula o el nombre del cliente" autocomplete="off" style="flex: 1; min-width: 0;">
+              <button type="button" id="btnClienteNuevo" onclick="activarModoClienteNuevo()" style="padding: 0.5rem 0.9rem; border: none; border-radius: 6px; background: #1e293b; color: white; font-weight: 700; font-size: 0.82rem; cursor: pointer; white-space: nowrap;"><i class="fa-solid fa-user-plus"></i> Cliente nuevo</button>
+              <button type="button" id="btnBuscarOtroCliente" onclick="reiniciarSeleccionCliente(true)" style="display: none; padding: 0.5rem 0.9rem; border: none; border-radius: 6px; background: #e2e8f0; color: #334155; font-weight: 700; font-size: 0.82rem; cursor: pointer; white-space: nowrap;"><i class="fa-solid fa-rotate-left"></i> Buscar otro cliente</button>
+            </div>
+            <div id="clienteModoInfo" style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted);"></div>
+          </div>
+
           <!-- RIF / CÉDULA DE CLIENTE CON SELECTOR DE TIPO Y AUTOCOMPLETADO -->
           <div class="input-group-modal">
             <label><i class="fa-solid fa-id-card"></i> RIF / CÉDULA *</label>
@@ -1574,17 +1654,15 @@
             </div>
           </div>
 
-          <!-- CLIENTE / LOCAL CON AUTOCOMPLETADO SEGURO POR NOMBRE -->
-          <div class="input-group-modal" style="position: relative;">
+          <!-- CLIENTE / LOCAL -->
+          <div class="input-group-modal">
             <label><i class="fa-solid fa-user"></i> CLIENTE / LOCAL *</label>
-            <input 
-              type="text" 
-              id="clientNameInput" 
-              placeholder="Ej. Supermercado El Ahorro" 
-              oninput="onClientNameInput(this.value)" 
+            <input
+              type="text"
+              id="clientNameInput"
+              placeholder="Ej. Supermercado El Ahorro"
               autocomplete="off"
             >
-            <div id="clientSuggestions" class="client-suggestions-container"></div>
           </div>
 
           <!-- TELÉFONO -->
@@ -1688,6 +1766,9 @@
             </label>
             <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; margin:4px 0; cursor:pointer;">
               <input type="checkbox" id="perm-estado_cuenta" style="width:auto; margin:0;"> Acceso al módulo de Estado de Cuenta
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; margin:4px 0; cursor:pointer;">
+              <input type="checkbox" id="perm-reporte_deuda" style="width:auto; margin:0;"> Acceso al Reporte de Deuda (por vendedor y zona)
             </label>
             <p style="font-size:0.75rem; color:var(--text-muted); margin-top:6px;">Al cambiar el rol se cargan los valores por defecto de ese rol; puede ajustarlos antes de guardar. El usuario recibe los cambios en menos de un minuto.</p>
           </div>
@@ -2039,23 +2120,6 @@
       return { tipo: "V", num: rifCedulaCompleto };
     }
 
-    async function ejecutarBusquedaClienteAuto() {
-      const rifCedula = construirRifCedulaCompleto();
-      if (!rifCedula) return;
-
-      const clienteEnc = await buscarClienteEnBD(rifCedula);
-      if (clienteEnc) {
-        document.getElementById("clientNameInput").value = clienteEnc.nombre || "";
-        document.getElementById("telefonoInput").value = clienteEnc.telefono || "";
-        document.getElementById("addressInput").value = clienteEnc.direccion || "";
-        
-        if (clienteEnc.sector) {
-          const selectSector = document.getElementById("sectorSelect");
-          selectSector.value = clienteEnc.sector;
-        }
-      }
-    }
-
     async function buscarClienteEnBD(rifCedula) {
       if (!rifCedula) return null;
       try {
@@ -2076,106 +2140,259 @@
       }
     }
 
-    let clientSearchTimeout = null;
-    let clientesCacheBusqueda = [];
+    /* =========================================================
+       CLIENTE EN EL FORMULARIO DE LA ORDEN
+       - Se busca el cliente (RIF, cédula o nombre) igual que en Pagos y Estado de cuenta.
+       - Cliente registrado: RIF / Cédula, Cliente / Local y Sector quedan bloqueados;
+         el vendedor solo puede actualizar teléfono y dirección.
+       - Cliente nuevo: el vendedor completa todos los datos para registrarlo.
+       - Esta regla vale para todos los usuarios (también el administrador): los datos de un
+         cliente registrado no se editan desde la orden.
+       - Si se escribe un RIF / Cédula que ya existe como "cliente nuevo", se avisa de inmediato,
+         se borra el código escrito y no se permite crear ni enviar la orden con él.
+    ========================================================= */
+    const clienteOrden = { modo: "buscar", original: null, inicializado: false };
+    const MSG_BUSCAR_CLIENTE = "Escriba el RIF, la cédula o el nombre para buscar un cliente registrado. Si es nuevo, pulse «Cliente nuevo».";
 
-    function onClientNameInput(val) {
-      clearTimeout(clientSearchTimeout);
-      const container = document.getElementById("clientSuggestions");
-      
-      if (!container.dataset.protected) {
-        container.dataset.protected = "1";
-        container.addEventListener("mousedown", (e) => e.preventDefault());
+    function setInfoClienteOrden(texto, color) {
+      const el = document.getElementById("clienteModoInfo");
+      if (!el) return;
+      el.style.color = color || "var(--text-muted)";
+      el.textContent = texto || "";
+    }
+
+    function establecerSectorFormulario(sector) {
+      const sel = document.getElementById("sectorSelect");
+      if (!sel) return;
+      sel.querySelectorAll("option[data-temp]").forEach(o => o.remove());
+      sel.value = "";
+      const s = (sector || "").trim();
+      if (!s) return;
+      sel.value = s;
+      if (sel.value !== s) {
+        // El sector guardado no está en la lista fija: se muestra igualmente
+        const o = document.createElement("option");
+        o.value = s;
+        o.textContent = s;
+        o.dataset.temp = "1";
+        sel.appendChild(o);
+        sel.value = s;
       }
+    }
 
-      if (!val || val.trim().length < 2) {
-        container.style.display = "none";
+    function limpiarCamposCliente() {
+      document.getElementById("tipoDocInput").value = "V";
+      document.getElementById("numDocInput").value = "";
+      document.getElementById("clientNameInput").value = "";
+      document.getElementById("telefonoInput").value = "";
+      document.getElementById("addressInput").value = "";
+      establecerSectorFormulario("");
+    }
+
+    function cargarClienteEnFormulario(c) {
+      const d = desglosarRifCedula(c.rif_cedula);
+      document.getElementById("tipoDocInput").value = d.tipo;
+      document.getElementById("numDocInput").value = d.num;
+      document.getElementById("clientNameInput").value = c.nombre || "";
+      document.getElementById("telefonoInput").value = c.telefono || "";
+      document.getElementById("addressInput").value = c.direccion || "";
+      establecerSectorFormulario(c.sector);
+    }
+
+    // Bloquea o habilita los campos según el modo: "buscar", "existente" o "nuevo"
+    function aplicarModoCliente(modo, cliente) {
+      clienteOrden.modo = modo;
+      clienteOrden.original = cliente || null;
+      const buscar = modo === "buscar", nuevo = modo === "nuevo", existente = modo === "existente";
+      const sectorVacio = existente && !((cliente && cliente.sector) || "").trim();
+      const bloquear = (id, b) => { const el = document.getElementById(id); if (el) el.disabled = b; };
+
+      bloquear("tipoDocInput", !nuevo);
+      bloquear("numDocInput", !nuevo);
+      bloquear("clientNameInput", buscar || existente);
+      bloquear("sectorSelect", buscar || (existente && !sectorVacio));
+      bloquear("telefonoInput", buscar);
+      bloquear("addressInput", buscar);
+      bloquear("clienteBuscarInput", !buscar);
+
+      const btnNuevo = document.getElementById("btnClienteNuevo");
+      const btnOtro = document.getElementById("btnBuscarOtroCliente");
+      if (btnNuevo) btnNuevo.style.display = buscar ? "" : "none";
+      if (btnOtro) btnOtro.style.display = buscar ? "none" : "";
+
+      let msg, color;
+      if (buscar) {
+        msg = MSG_BUSCAR_CLIENTE; color = "var(--text-muted)";
+      } else if (nuevo) {
+        msg = "Cliente nuevo: complete todos los datos para registrarlo."; color = "#2563eb";
+      } else {
+        msg = "Cliente registrado. Solo puede actualizar el teléfono y la dirección.";
+        if (sectorVacio) msg += " Este cliente no tiene sector: selecciónelo.";
+        color = "#16a34a";
+      }
+      setInfoClienteOrden(msg, color);
+      return msg;
+    }
+
+    function ocultarListaBuscador(inputId) {
+      _buscadoresListas.forEach(it => {
+        if (it.input && it.input.id === inputId) { it.lista.style.display = "none"; it.lista.innerHTML = ""; }
+      });
+    }
+
+    async function seleccionarClienteOrden(rif) {
+      ocultarListaBuscador("clienteBuscarInput");
+      setInfoClienteOrden("Cargando cliente...");
+      const c = await buscarClienteEnBD(rif);
+      if (!c) {
+        setInfoClienteOrden("No se pudo cargar el cliente. Intente de nuevo.", "#dc2626");
         return;
       }
-
-      clientSearchTimeout = setTimeout(async () => {
-        try {
-          const { data, error } = await _supabase
-            .from("clientes")
-            .select("*")
-            .ilike("nombre", `%${val.trim()}%`)
-            .limit(10);
-
-          if (error || !data || data.length === 0) {
-            container.style.display = "none";
-            return;
-          }
-
-          clientesCacheBusqueda = data;
-
-          container.innerHTML = data.map((c, index) => `
-            <div class="client-suggestion-item" onclick="seleccionarClientePorIndice(${index})">
-              <strong>${escapeHtml(c.nombre)}</strong><br>
-              <span style="font-size:0.75rem; color:var(--text-muted);">RIF/Cédula: ${escapeHtml(c.rif_cedula)} \vert{} Tel:${escapeHtml(c.telefono || 'N/D')}</span>
-            </div>
-          `).join("");
-          
-          container.style.display = "block";
-        } catch (e) {
-          console.error("Error buscando clientes por nombre:", e);
-          container.style.display = "none";
-        }
-      }, 300);
+      cargarClienteEnFormulario(c);
+      aplicarModoCliente("existente", c);
+      const b = document.getElementById("clienteBuscarInput");
+      if (b) b.value = `${c.rif_cedula} — ${c.nombre || ""}`;
     }
 
-    function seleccionarClientePorIndice(index) {
-      const c = clientesCacheBusqueda[index];
-      if (!c) return;
-
-      document.getElementById("clientNameInput").value = c.nombre || "";
-      
-      const desglosado = desglosarRifCedula(c.rif_cedula);
-      document.getElementById("tipoDocInput").value = desglosado.tipo;
-      document.getElementById("numDocInput").value = desglosado.num;
-      document.getElementById("telefonoInput").value = c.telefono || "";
-      
-      if (c.sector) {
-        document.getElementById("sectorSelect").value = c.sector;
+    // Enter en el buscador: si el texto identifica a un solo cliente, se selecciona
+    async function buscarClienteOrdenPorTexto() {
+      const input = document.getElementById("clienteBuscarInput");
+      const texto = input ? input.value.trim() : "";
+      if (!texto || clienteOrden.modo !== "buscar") return;
+      setInfoClienteOrden("Buscando cliente...");
+      const r = await resolverClienteTexto(texto);
+      if (!r.cliente) {
+        const ayuda = r.motivo === "no_encontrado" ? " Si es un cliente nuevo, pulse «Cliente nuevo»." : "";
+        setInfoClienteOrden(mensajeClienteNoResuelto(r, texto) + ayuda, "#dc2626");
+        return;
       }
-      
-      document.getElementById("addressInput").value = c.direccion || "";
-      document.getElementById("clientSuggestions").style.display = "none";
+      await seleccionarClienteOrden(r.cliente.rif_cedula);
     }
 
-    document.addEventListener("click", (e) => {
-      const container = document.getElementById("clientSuggestions");
-      const input = document.getElementById("clientNameInput");
-      if (container && input && !container.contains(e.target) && e.target !== input) {
-        container.style.display = "none";
-      }
-    });
+    function alSinResultadosClienteOrden(q) {
+      if (clienteOrden.modo !== "buscar") return;
+      if (q) setInfoClienteOrden(`No se encontró «${q}». Si es un cliente nuevo, pulse «Cliente nuevo».`, "#b45309");
+      else setInfoClienteOrden(MSG_BUSCAR_CLIENTE, "var(--text-muted)");
+    }
 
+    function activarModoClienteNuevo() {
+      const input = document.getElementById("clienteBuscarInput");
+      const texto = input ? input.value.trim() : "";
+      ocultarListaBuscador("clienteBuscarInput");
+      limpiarCamposCliente();
+      aplicarModoCliente("nuevo", null);
+      if (input) input.value = "Cliente nuevo";
+
+      // Si lo escrito parece un RIF / cédula se coloca ahí; si no, se toma como el nombre
+      const m = texto.match(/^([VEJG])?[-\s]?(\d[\d.]*)$/i);
+      if (m) {
+        document.getElementById("tipoDocInput").value = (m[1] || "V").toUpperCase();
+        document.getElementById("numDocInput").value = m[2].replace(/\./g, "");
+      } else if (texto) {
+        document.getElementById("clientNameInput").value = texto;
+      }
+      const primero = document.getElementById(m ? "clientNameInput" : "numDocInput");
+      if (primero) primero.focus();
+      if (m) ejecutarBusquedaClienteAuto();
+    }
+
+    function reiniciarSeleccionCliente(enfocar) {
+      clienteOrden.inicializado = true;
+      limpiarCamposCliente();
+      const input = document.getElementById("clienteBuscarInput");
+      if (input) input.value = "";
+      ocultarListaBuscador("clienteBuscarInput");
+      aplicarModoCliente("buscar", null);
+      if (enfocar && input) input.focus();
+    }
+
+    function prepararClienteOrden() {
+      if (clienteOrden.inicializado) return;
+      clienteOrden.inicializado = true;
+      aplicarModoCliente("buscar", null);
+    }
+
+    // Cliente nuevo: al escribir el RIF / Cédula (al salir del campo, Enter o cambiar el tipo) se comprueba
+    // que no exista ya. Si existe: alerta inmediata, se borra el código y no se puede continuar con él.
+    let verificacionRifEnCurso = null;
+
+    function ejecutarBusquedaClienteAuto() {
+      if (verificacionRifEnCurso) return verificacionRifEnCurso;
+      verificacionRifEnCurso = verificarRifClienteNuevo().finally(() => { verificacionRifEnCurso = null; });
+      return verificacionRifEnCurso;
+    }
+
+    // Devuelve true si el RIF / Cédula ya estaba registrado
+    async function verificarRifClienteNuevo() {
+      if (clienteOrden.modo !== "nuevo") return false;
+      const rif = construirRifCedulaCompleto();
+      if (!rif) return false;
+
+      const existente = await buscarClienteEnBD(rif);
+      if (!existente || clienteOrden.modo !== "nuevo") return false;
+
+      const num = document.getElementById("numDocInput");
+      if (num) num.value = "";
+      setInfoClienteOrden("Ese RIF / Cédula ya está registrado. Búsquelo en el buscador o escriba uno distinto.", "#dc2626");
+      alert(`El RIF / Cédula ${existente.rif_cedula} ya está registrado a nombre de "${existente.nombre || ""}".\n\nNo se puede crear como cliente nuevo.\n• Si es ese cliente: pulse «Buscar otro cliente» y búsquelo en el buscador.\n• Si es otro cliente: escriba un RIF / Cédula distinto.`);
+      if (num) num.focus();
+      return true;
+    }
+
+    // Devuelve { duplicado: true } si se intentó crear un cliente cuyo RIF ya existía
     async function guardarOActualizarClienteBD(datosCliente) {
       const { rif_cedula, nombre, telefono, direccion, sector, vendedor_email } = datosCliente;
-      if (!rif_cedula || !nombre) return;
+      if (!rif_cedula || !nombre) return {};
 
-      const payload = {
-        rif_cedula: rif_cedula.trim().toUpperCase(),
-        nombre: nombre.trim(),
-        telefono: telefono ? telefono.trim() : "",
-        direccion: direccion ? direccion.trim() : "",
-        sector: sector ? sector.trim() : "",
-        vendedor_email: vendedor_email || ""
+      const rif = rif_cedula.trim().toUpperCase();
+      const tel = telefono ? telefono.trim() : "";
+      const dir = direccion ? direccion.trim() : "";
+
+      // Cliente que ya existe: SOLO se actualizan teléfono y dirección (y el sector únicamente
+      // si el cliente no tenía uno). Nombre, RIF y vendedor nunca se modifican desde la orden.
+      const actualizarContacto = async (sectorActual) => {
+        const cambios = { telefono: tel, direccion: dir };
+        if (!((sectorActual || "").trim()) && sector) cambios.sector = sector.trim();
+        const { error } = await _supabase.from("clientes").update(cambios).eq("rif_cedula", rif);
+        if (error) console.error("Error al actualizar teléfono/dirección del cliente:", error);
       };
 
       try {
-        const { error } = await _supabase
+        const { data: previo, error: errPrevio } = await _supabase
           .from("clientes")
-          .upsert(payload, { onConflict: "rif_cedula" });
+          .select("rif_cedula, sector")
+          .eq("rif_cedula", rif)
+          .limit(1);
+        if (errPrevio) {
+          console.error("No se pudo comprobar si el cliente ya existe:", errPrevio);
+          return {};
+        }
+
+        if (previo && previo.length > 0) {
+          await actualizarContacto(previo[0].sector);
+          return {};
+        }
+
+        // Cliente nuevo: se inserta (nunca se sobrescribe uno existente)
+        const { error } = await _supabase.from("clientes").insert({
+          rif_cedula: rif,
+          nombre: nombre.trim(),
+          telefono: tel,
+          direccion: dir,
+          sector: sector ? sector.trim() : "",
+          vendedor_email: vendedor_email || ""
+        });
 
         if (error) {
+          if (error.code === "23505") return { duplicado: true };  // otro usuario lo creó justo antes
           console.error("Error al registrar cliente en BD:", error);
         } else {
-          console.log("Cliente sincronizado exitosamente en la base de datos.");
+          console.log("Cliente registrado exitosamente en la base de datos.");
         }
       } catch (e) {
         console.error("Excepción al guardar cliente:", e);
       }
+      return {};
     }
 
     /* =========================================================
@@ -2235,10 +2452,10 @@
        ROLES Y PERMISOS
     ========================================================= */
     const ROLES = {
-      admin:            { etiqueta: "Administrador General",    defaults: { modulo_ordenes: true,  modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: true, estado_cuenta: true } },
-      admin_secundario: { etiqueta: "Admin secundario",         defaults: { modulo_ordenes: false, modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: true, estado_cuenta: true } },
-      asistente:        { etiqueta: "Asistente administrativo", defaults: { modulo_ordenes: false, modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: false, estado_cuenta: true } },
-      vendedor:         { etiqueta: "Vendedor",                 defaults: { modulo_ordenes: true,  modulo_pagos: false, reportar_pagos: true, aprobar_pagos: false, estado_cuenta: true } }
+      admin:            { etiqueta: "Administrador General",    defaults: { modulo_ordenes: true,  modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: true, estado_cuenta: true, reporte_deuda: true } },
+      admin_secundario: { etiqueta: "Admin secundario",         defaults: { modulo_ordenes: false, modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: true, estado_cuenta: true, reporte_deuda: false } },
+      asistente:        { etiqueta: "Asistente administrativo", defaults: { modulo_ordenes: false, modulo_pagos: true,  reportar_pagos: true, aprobar_pagos: false, estado_cuenta: true, reporte_deuda: false } },
+      vendedor:         { etiqueta: "Vendedor",                 defaults: { modulo_ordenes: true,  modulo_pagos: false, reportar_pagos: true, aprobar_pagos: false, estado_cuenta: true, reporte_deuda: false } }
     };
 
     function esAdminGeneral(u) {
@@ -2269,6 +2486,7 @@
       if (tienePermiso(u, "modulo_ordenes")) lista.push("ordenes");
       if (tienePermiso(u, "modulo_pagos") || tienePermiso(u, "reportar_pagos")) lista.push("pagos");
       if (tienePermiso(u, "estado_cuenta")) lista.push("estado_cuenta");
+      if (tienePermiso(u, "reporte_deuda")) lista.push("reporte_deuda");
       if (esAdminGeneral(u)) lista.push("usuarios");
       return lista;
     }
@@ -2278,7 +2496,7 @@
     }
 
     function mostrarTarjetasMenu(modulos) {
-      [["ordenes", "menuCardOrdenes"], ["pagos", "menuCardPagos"], ["estado_cuenta", "menuCardEstadoCuenta"], ["usuarios", "menuCardUsuarios"]].forEach(([modulo, id]) => {
+      [["ordenes", "menuCardOrdenes"], ["pagos", "menuCardPagos"], ["estado_cuenta", "menuCardEstadoCuenta"], ["reporte_deuda", "menuCardReporteDeuda"], ["usuarios", "menuCardUsuarios"]].forEach(([modulo, id]) => {
         const el = document.getElementById(id);
         if (el) el.style.display = modulos.includes(modulo) ? "flex" : "none";
       });
@@ -2342,6 +2560,8 @@
         abrirModuloAdmin("pagos");
       } else if (modulos.length === 1 && modulos[0] === "estado_cuenta") {
         abrirModuloAdmin("estado_cuenta");
+      } else if (modulos.length === 1 && modulos[0] === "reporte_deuda") {
+        abrirModuloAdmin("reporte_deuda");
       } else {
         mostrarTarjetasMenu(modulos);
         if (menuAdmin) menuAdmin.style.display = "block";
@@ -2409,6 +2629,14 @@
         if (cartBar) cartBar.style.display = "none";
         if (btnVolver) btnVolver.style.display = mostrarVolver;
         iniciarEstadoCuenta();
+      } else if (modulo === 'reporte_deuda') {
+        if (appLayout) appLayout.style.display = "grid";
+        mostrarCatalogoAdmin(false);
+        if (moduloFinanzas) moduloFinanzas.style.display = "none";
+        ocultarEstadoCuenta();
+        if (cartBar) cartBar.style.display = "none";
+        if (btnVolver) btnVolver.style.display = mostrarVolver;
+        rdIniciar();
       } else if (modulo === 'usuarios') {
         openAdminModal();
         if (menuAdmin) menuAdmin.style.display = "block";
@@ -2538,7 +2766,7 @@
       if (esAdminGeneral(u)) {
         return `<span class="admin-badge" style="background:#fef3c7; color:#92400e;">Todos los privilegios</span>`;
       }
-      const items = [["modulo_ordenes", "Órdenes"], ["modulo_pagos", "Pagos completo"], ["reportar_pagos", "Reporta pagos"], ["aprobar_pagos", "Aprueba pagos"], ["estado_cuenta", "Estado de cuenta"]];
+      const items = [["modulo_ordenes", "Órdenes"], ["modulo_pagos", "Pagos completo"], ["reportar_pagos", "Reporta pagos"], ["aprobar_pagos", "Aprueba pagos"], ["estado_cuenta", "Estado de cuenta"], ["reporte_deuda", "Reporte de deuda"]];
       return items.map(([clave, texto]) => tienePermiso(u, clave)
         ? `<span class="admin-badge" style="background:#dcfce7; color:#15803d; margin:1px;">${texto}</span>`
         : `<span class="admin-badge" style="background:#f1f5f9; color:#94a3b8; margin:1px; text-decoration:line-through;">${texto}</span>`
@@ -2635,6 +2863,7 @@
       document.getElementById("perm-reportar_pagos").checked = !!permisos.reportar_pagos;
       document.getElementById("perm-aprobar_pagos").checked = !!permisos.aprobar_pagos;
       document.getElementById("perm-estado_cuenta").checked = !!permisos.estado_cuenta;
+      document.getElementById("perm-reporte_deuda").checked = !!permisos.reporte_deuda;
     }
 
     function leerPermisosForm() {
@@ -2643,7 +2872,8 @@
         modulo_pagos: document.getElementById("perm-modulo_pagos").checked,
         reportar_pagos: document.getElementById("perm-reportar_pagos").checked || document.getElementById("perm-modulo_pagos").checked,
         aprobar_pagos: document.getElementById("perm-aprobar_pagos").checked,
-        estado_cuenta: document.getElementById("perm-estado_cuenta").checked
+        estado_cuenta: document.getElementById("perm-estado_cuenta").checked,
+        reporte_deuda: document.getElementById("perm-reporte_deuda").checked
       };
     }
 
@@ -2675,7 +2905,8 @@
         modulo_pagos: tienePermiso(u, "modulo_pagos"),
         reportar_pagos: tienePermiso(u, "reportar_pagos"),
         aprobar_pagos: tienePermiso(u, "aprobar_pagos"),
-        estado_cuenta: tienePermiso(u, "estado_cuenta")
+        estado_cuenta: tienePermiso(u, "estado_cuenta"),
+        reporte_deuda: tienePermiso(u, "reporte_deuda")
       });
       document.getElementById("permBlock").style.display = principal ? "none" : "block";
 
@@ -2811,6 +3042,40 @@
       return docStr;
     }
 
+    // ----- Fecha de emisión del Excel (columna EMISION, formato día/mes/año) -----
+    function valorColumnaExcel(row, nombres) {
+      const norm = s => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+      const buscados = nombres.map(norm);
+      for (const k of Object.keys(row)) {
+        if (buscados.includes(norm(k))) return row[k];
+      }
+      return undefined;
+    }
+
+    // Devuelve "AAAA-MM-DD" o null si no se puede interpretar. Acepta "21/10/2026", fechas de Excel y "2026-10-21".
+    function fechaISODesdeCeldaExcel(v) {
+      if (v === undefined || v === null || v === "") return null;
+      const ok = (y, m, d) => {
+        if (y < 2000 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+        const f = new Date(y, m - 1, d);
+        if (f.getFullYear() !== y || f.getMonth() !== m - 1 || f.getDate() !== d) return null;
+        return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      };
+      if (typeof v === "number") {
+        const p = (typeof XLSX !== "undefined" && XLSX.SSF && XLSX.SSF.parse_date_code) ? XLSX.SSF.parse_date_code(v) : null;
+        if (p) return ok(p.y, p.m, p.d);
+        const f = new Date(Math.round((v - 25569) * 86400000));
+        return ok(f.getUTCFullYear(), f.getUTCMonth() + 1, f.getUTCDate());
+      }
+      if (v instanceof Date) return ok(v.getFullYear(), v.getMonth() + 1, v.getDate());
+      const t = String(v).trim();
+      let m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?:\D.*)?$/);
+      if (m) return ok(+m[3], +m[2], +m[1]);          // día/mes/año
+      m = t.match(/^(\d{4})-(\d{2})-(\d{2})(?:\D.*)?$/);
+      if (m) return ok(+m[1], +m[2], +m[3]);
+      return null;
+    }
+
     async function procesarExcelPremiumSoft() {
       const inputTasa = document.getElementById("tasa-cambio-excel");
       const inputArchivo = document.getElementById("archivo-excel-premium");
@@ -2860,6 +3125,15 @@
 
           const rows = XLSX.utils.sheet_to_json(worksheet, { range: headerIndex });
 
+          // La columna fecha_emision debe existir en Supabase antes de cargar facturas
+          const { error: errColumna } = await _supabase.from("historial_cuentas").select("fecha_emision").limit(1);
+          if (errColumna) {
+            alert("Falta crear la columna fecha_emision en Supabase.\n\nEjecute primero en el SQL Editor:\nalter table historial_cuentas add column if not exists fecha_emision date;\n\nLuego vuelva a cargar el Excel. No se cargó nada.");
+            statusDiv.className = "mt-2 text-xs font-bold text-red-600";
+            statusDiv.innerText = "❌ Falta la columna fecha_emision en la tabla historial_cuentas.";
+            return;
+          }
+
           const { data: listaClientes, error: errClientes } = await _supabase.from("clientes").select("rif_cedula, nombre, deuda_actual");
           if (errClientes) throw errClientes;
 
@@ -2884,6 +3158,9 @@
           let asociadasPorNumero = 0;   // la letra del RIF era distinta (V-5000 vs J-5000)
           const detallePorNumero = {};  // quiénes fueron: RIF del Excel, RIF del sistema, nombre
           let clientesAmbiguos = 0;     // el mismo número lo tienen varios clientes: no se adivina
+          let fechasCompletadas = 0;    // facturas ya cargadas a las que se les agregó la fecha de emisión
+          let facturasSinFecha = 0;     // facturas nuevas cuyo Excel no traía una fecha de emisión válida
+          let erroresFactura = 0;       // facturas que no se pudieron guardar (no se suman a la deuda)
 
           for (const row of rows) {
             const codCliente = row["CODCLIENTE"];
@@ -2923,15 +3200,25 @@
             }
 
             const docFormateado = formatearDocumentoPremiumSoft(numDoc);
+            const fechaEmision = fechaISODesdeCeldaExcel(valorColumnaExcel(row, ["EMISION"]));
 
-            const { data: existeDoc } = await _supabase
+            const { data: existeDoc, error: errDoc } = await _supabase
               .from("historial_cuentas")
-              .select("id")
+              .select("id, fecha_emision")
               .eq("rif_cedula", clienteMatch.rif_original)
               .eq("referencia_doc", docFormateado)
               .limit(1);
+            if (errDoc) throw errDoc;   // si no se puede comprobar, no se arriesga a duplicar la deuda
 
             if (existeDoc && existeDoc.length > 0) {
+              // Factura ya cargada: si no tenía fecha de emisión, se completa (sin tocar la deuda)
+              if (!existeDoc[0].fecha_emision && fechaEmision) {
+                const { error: errFecha } = await _supabase
+                  .from("historial_cuentas")
+                  .update({ fecha_emision: fechaEmision })
+                  .eq("id", existeDoc[0].id);
+                if (!errFecha) fechasCompletadas++;
+              }
               facturasOmitidasDuplicadas++;
               continue;
             }
@@ -2939,7 +3226,7 @@
             const montoUSD = parseFloat((totalNetoBs / tasa).toFixed(2));
             const nuevoSaldo = parseFloat((clienteMatch.deuda_actual + montoUSD).toFixed(2));
 
-            await _supabase.from("historial_cuentas").insert([{
+            const { error: errInsertFactura } = await _supabase.from("historial_cuentas").insert([{
               rif_cedula: clienteMatch.rif_original,
               tipo_movimiento: "FACTURA",
               monto: montoUSD,
@@ -2948,8 +3235,15 @@
               referencia_doc: docFormateado,
               lote_importacion: loteImportacion,
               observacion: `Monto Bs: ${fmtVE(totalNetoBs)} | Tasa: ${tasa}`,
-              creado_por: "admin"
+              creado_por: "admin",
+              fecha_emision: fechaEmision
             }]);
+            if (errInsertFactura) {
+              console.error("No se pudo guardar la factura " + docFormateado + ":", errInsertFactura);
+              erroresFactura++;
+              continue;   // sin factura guardada no se toca la deuda del cliente
+            }
+            if (!fechaEmision) facturasSinFecha++;
 
             await _supabase
               .from("clientes")
@@ -2961,7 +3255,7 @@
           }
 
           statusDiv.className = "mt-2 text-xs font-bold text-green-600";
-          statusDiv.innerText = `✅ Importación exitosa. Agregadas: ${facturasProcesadas} | Omitidas (Duplicadas): ${facturasOmitidasDuplicadas} | No mapeados: ${clientesNoEncontrados}`;
+          statusDiv.innerText = `✅ Importación exitosa. Agregadas: ${facturasProcesadas} | Omitidas (Duplicadas): ${facturasOmitidasDuplicadas} | No mapeados: ${clientesNoEncontrados}` + (fechasCompletadas ? ` | Fechas completadas: ${fechasCompletadas}` : "") + (erroresFactura ? ` | Con error: ${erroresFactura}` : "");
           const filasAsociadas = Object.values(detallePorNumero);
           if (detalleDiv && filasAsociadas.length > 0) {
             const tdEstilo = 'style="padding: 6px 10px; border-bottom: 1px solid var(--border-color);"';
@@ -2992,7 +3286,7 @@
             `;
           }
 
-          alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas:${facturasOmitidasDuplicadas}\nClientes no encontrados: ${clientesNoEncontrados}${asociadasPorNumero ? `\nAsociadas por número (letra del RIF distinta): ${asociadasPorNumero}` : ""}${clientesAmbiguos ? `\nSin cargar, número repetido en varios clientes: ${clientesAmbiguos}` : ""}\nLote asignado:${loteImportacion}`);
+          alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas:${facturasOmitidasDuplicadas}\nClientes no encontrados: ${clientesNoEncontrados}${asociadasPorNumero ? `\nAsociadas por número (letra del RIF distinta): ${asociadasPorNumero}` : ""}${clientesAmbiguos ? `\nSin cargar, número repetido en varios clientes: ${clientesAmbiguos}` : ""}${fechasCompletadas ? `\nFechas de emisión completadas en facturas ya cargadas: ${fechasCompletadas}` : ""}${facturasSinFecha ? `\nFacturas nuevas sin fecha de emisión válida en el Excel: ${facturasSinFecha}` : ""}${erroresFactura ? `\nFacturas con error al guardar (no se sumaron a la deuda): ${erroresFactura}` : ""}\nLote asignado:${loteImportacion}`);
 
         } catch (err) {
           console.error("Error procesando Excel:", err);
@@ -3325,7 +3619,7 @@
       lista.style.width = Math.max(r.width, 300) + "px";
     }
 
-    function activarBuscadorCliente(inputId, alSeleccionar) {
+    function activarBuscadorCliente(inputId, alSeleccionar, alSinResultados) {
       const input = document.getElementById(inputId);
       if (!input || input.dataset.buscador === "1") return;
       input.dataset.buscador = "1";
@@ -3356,7 +3650,12 @@
             .order("nombre")
             .limit(8);
 
-          if (error || !data || data.length === 0) { ocultar(); return; }
+          if (error || !data || data.length === 0) {
+            ocultar();
+            if (alSinResultados && !error) alSinResultados(q);
+            return;
+          }
+          if (alSinResultados) alSinResultados(null);
 
           const verDeuda = tienePermiso(currentUser, "modulo_pagos");
           lista.innerHTML = data.map((c, i) => `
@@ -3399,6 +3698,13 @@
       activarBuscadorCliente("buscar-rif-kardex", () => cargarKardexCliente());
       activarBuscadorCliente("pago-rif", () => buscarClientePago());
       activarBuscadorCliente("ajuste-rif", () => buscarClienteAjuste());
+      activarBuscadorCliente("clienteBuscarInput", (c) => seleccionarClienteOrden(c.rif_cedula), alSinResultadosClienteOrden);
+      const buscadorOrden = document.getElementById("clienteBuscarInput");
+      if (buscadorOrden) {
+        buscadorOrden.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") { e.preventDefault(); buscarClienteOrdenPorTexto(); }
+        });
+      }
       const kardexInput = document.getElementById("buscar-rif-kardex");
       if (kardexInput) {
         kardexInput.addEventListener("keydown", (e) => { if (e.key === "Enter") cargarKardexCliente(); });
@@ -3987,6 +4293,677 @@
       cargarAjustes();
     }
 
+/* =========================================================
+       REPORTE DE DEUDA POR VENDEDOR Y ZONA
+       - Lee la tabla clientes (vendedor_email, sector, deuda_actual).
+       - Orden dentro de cada grupo: con deuda (mayor a menor), saldo en cero, saldo a favor.
+       - Se puede imprimir y exportar a Excel (respeta el filtro elegido).
+    ========================================================= */
+    const RD_CSS_BASE = `
+      .rd-resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem;margin:.9rem 0 1rem}
+      .rd-card{border:1px solid #cbd5e1;border-radius:10px;padding:.55rem .8rem;background:#fff}
+      .rd-card small{display:block;font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase}
+      .rd-card b{font-size:1.15rem;color:#0f172a}
+      .rd-card span{font-size:.78rem;font-weight:700;color:#15803d}
+      .rd-d{color:#b91c1c}.rd-c{color:#64748b}.rd-f{color:#15803d}
+      .rd-grupo{border:1px solid #cbd5e1;border-radius:10px;margin-bottom:.8rem;background:#fff;overflow:hidden}
+      .rd-grupo>summary{cursor:pointer;list-style:none;padding:.7rem .9rem;background:#f1f5f9;display:flex;flex-wrap:wrap;gap:.4rem .6rem;align-items:center}
+      .rd-grupo>summary::-webkit-details-marker{display:none}
+      .rd-tit{font-weight:800;font-size:.95rem;color:#0f172a;margin-right:auto}
+      .rd-chip{font-size:.74rem;font-weight:700;padding:2px 9px;border-radius:999px;background:#e2e8f0;color:#334155;white-space:nowrap}
+      .rd-chip.deuda{background:#fee2e2;color:#b91c1c}.rd-chip.cero{background:#e2e8f0;color:#475569}.rd-chip.favor{background:#dcfce7;color:#15803d}
+      .rd-scroll{overflow-x:auto}
+      .rd-tabla{width:100%;border-collapse:collapse;font-size:.82rem}
+      .rd-tabla th{text-align:left;background:#f8fafc;padding:6px 8px;border-bottom:1px solid #cbd5e1;font-size:.7rem;text-transform:uppercase;color:#64748b}
+      .rd-tabla td{padding:5px 8px;border-bottom:1px solid #e2e8f0}
+      .rd-tabla .num{text-align:right;white-space:nowrap;font-weight:700}
+      .rd-tabla tr.rd-sec td{background:#f1f5f9;font-weight:800;font-size:.72rem;color:#334155;text-transform:uppercase}
+      .rd-tabla tr.rd-total td{background:#f1f5f9;font-weight:800;border-top:2px solid #94a3b8}
+      .rd-mini{margin:.5rem .9rem}
+      .rd-tabla tr.rd-cli td{background:#f8fafc;font-weight:800;border-top:1px solid #94a3b8}
+      .rd-venc{color:#b91c1c;font-weight:700}.rd-hoy{color:#c2410c;font-weight:700}.rd-porv{color:#b45309;font-weight:700}.rd-vig{color:#15803d;font-weight:700}
+      .rd-nota{font-size:.75rem;color:#64748b;margin:.5rem 0}
+      .rd-sub{font-size:.8rem;font-weight:800;color:#334155;margin:.9rem 0 .3rem}
+    `;
+    const RD_CSS_PANTALLA = `
+      .rd-toolbar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end}
+      .rd-lab{display:block;font-size:.72rem;font-weight:700;color:#64748b;margin-bottom:2px}
+      .rd-toolbar select{padding:.45rem .6rem;border:1px solid #cbd5e1;border-radius:8px;font-size:.88rem;background:#fff;min-width:210px}
+      .rd-toolbar button{padding:.5rem .9rem;border:none;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer;background:#e2e8f0;color:#334155}
+      .rd-toolbar button.principal{background:#1e293b;color:#fff}
+      .rd-toolbar button.excel{background:#16a34a;color:#fff}
+      .rd-tabs{display:flex;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden}
+      .rd-tabs button{border-radius:0;background:#fff}
+      .rd-tabs button.activo{background:#1e293b;color:#fff}
+      .rd-grupo>summary:hover{background:#e2e8f0}
+    `;
+    const RD_CSS_IMPRESION = `
+      @page{size:A4;margin:12mm}
+      body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;padding:6px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      h1{font-size:18px;margin:0}
+      .rd-meta{font-size:11px;color:#475569;margin:2px 0 8px}
+      .rd-grupo{border-radius:0;page-break-inside:auto}
+      .rd-grupo>summary{page-break-after:avoid}
+      .rd-tabla{font-size:11px}
+      .rd-tabla tr{page-break-inside:avoid}
+      .rd-tabla thead{display:table-header-group}
+      body.rd-salto .rd-grupo+.rd-grupo{page-break-before:always}
+      .rd-resumen{grid-template-columns:repeat(5,1fr)}
+    `;
+
+    let rdClientes = [];
+    let rdVista = "vendedor";
+    let rdFiltro = "";
+    let rdModo = "deuda";               // "deuda" (vendedor / zona) o "cobranza" (facturas)
+    let rdFacturasPorCliente = null;    // null = todavía no cargadas
+    let rdCobEstado = "";
+    let rdCobOrden = "deuda";
+
+    function rdInyectarCss() {
+      if (document.getElementById("rd-estilos")) return;
+      const st = document.createElement("style");
+      st.id = "rd-estilos";
+      st.textContent = RD_CSS_BASE + RD_CSS_PANTALLA;
+      document.head.appendChild(st);
+    }
+
+    function ocultarReporteDeuda() {
+      const el = document.getElementById("modulo-reporte-deuda");
+      if (el) el.style.display = "none";
+    }
+
+    function rdMoneda(n) { return "$ " + fmtVE(n); }
+
+    function rdEstado(d) {
+      const c = Math.round(d * 100);
+      return c > 0 ? "deuda" : (c < 0 ? "favor" : "cero");
+    }
+
+    function rdOrdenar(lista) {
+      const rango = { deuda: 0, cero: 1, favor: 2 };
+      return lista.slice().sort((a, b) => {
+        const ea = rdEstado(a.deuda), eb = rdEstado(b.deuda);
+        if (ea !== eb) return rango[ea] - rango[eb];
+        if (ea === "deuda" && a.deuda !== b.deuda) return b.deuda - a.deuda;   // mayor deuda primero
+        if (ea === "favor" && a.deuda !== b.deuda) return a.deuda - b.deuda;   // mayor saldo a favor primero
+        return a.nombre.localeCompare(b.nombre);
+      });
+    }
+
+    function rdResumen(lista) {
+      const r = { total: lista.length, nDeuda: 0, nCero: 0, nFavor: 0, deudaTotal: 0, favorTotal: 0 };
+      lista.forEach(c => {
+        const e = rdEstado(c.deuda);
+        if (e === "deuda") { r.nDeuda++; r.deudaTotal += c.deuda; }
+        else if (e === "favor") { r.nFavor++; r.favorTotal += -c.deuda; }
+        else r.nCero++;
+      });
+      r.deudaTotal = Math.round(r.deudaTotal * 100) / 100;
+      r.favorTotal = Math.round(r.favorTotal * 100) / 100;
+      return r;
+    }
+
+    // Agrupa por "vendedor" o por "zona"; grupos ordenados por deuda total (mayor primero)
+    function rdAgruparPor(lista, por) {
+      const mapa = {};
+      lista.forEach(c => {
+        const k = por === "vendedor" ? c.vendKey : c.zona;
+        const n = por === "vendedor" ? c.vendNombre : c.zona;
+        if (!mapa[k]) mapa[k] = { clave: k, nombre: n, lista: [] };
+        mapa[k].lista.push(c);
+      });
+      return Object.values(mapa).map(g => ({ clave: g.clave, nombre: g.nombre, lista: rdOrdenar(g.lista), res: rdResumen(g.lista) }))
+        .sort((a, b) => (b.res.deudaTotal - a.res.deudaTotal) || a.nombre.localeCompare(b.nombre));
+    }
+
+    async function rdCargarDatos() {
+      let todos = [];
+      for (let desde = 0; ; desde += 1000) {
+        const { data, error } = await _supabase
+          .from("clientes")
+          .select("rif_cedula, nombre, sector, vendedor_email, deuda_actual")
+          .order("rif_cedula")
+          .range(desde, desde + 999);
+        if (error) throw error;
+        todos = todos.concat(data || []);
+        if (!data || data.length < 1000) break;
+      }
+
+      const nombres = {};
+      const { data: us } = await _supabase.from("usuarios").select("usuario, nombre_completo");
+      (us || []).forEach(u => { nombres[(u.usuario || "").trim()] = u.nombre_completo || u.usuario; });
+
+      rdClientes = todos.map(c => {
+        const clave = (c.vendedor_email || "").trim();
+        return {
+          rif: c.rif_cedula || "",
+          nombre: c.nombre || "(sin nombre)",
+          zona: (c.sector || "").trim() || "Sin zona",
+          vendKey: clave || "(sin vendedor)",
+          vendNombre: clave ? (nombres[clave] || clave) : "Sin vendedor",
+          deuda: Math.round(parseFloat(c.deuda_actual || 0) * 100) / 100
+        };
+      });
+    }
+
+    function rdListaFiltrada() {
+      return rdClientes.filter(c => !rdFiltro || (rdVista === "vendedor" ? c.vendKey : c.zona) === rdFiltro);
+    }
+
+    function rdLlenarFiltro() {
+      const sel = document.getElementById("rd-filtro");
+      const lab = document.getElementById("rd-filtro-label");
+      if (!sel) return;
+      if (lab) lab.textContent = rdVista === "vendedor" ? "Vendedor" : "Zona";
+      const mapa = {};
+      rdClientes.forEach(c => {
+        const k = rdVista === "vendedor" ? c.vendKey : c.zona;
+        const n = rdVista === "vendedor" ? c.vendNombre : c.zona;
+        if (!mapa[k]) mapa[k] = { nombre: n, cant: 0 };
+        mapa[k].cant++;
+      });
+      const claves = Object.keys(mapa).sort((a, b) => mapa[a].nombre.localeCompare(mapa[b].nombre));
+      if (rdFiltro && !mapa[rdFiltro]) rdFiltro = "";
+      sel.innerHTML = `<option value="">Todos (${rdVista === "vendedor" ? "vendedores" : "zonas"}: ${claves.length})</option>`
+        + claves.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(mapa[k].nombre)} (${mapa[k].cant})</option>`).join("");
+      sel.value = rdFiltro;
+    }
+
+    function rdFilaSaldo(c) {
+      const e = rdEstado(c.deuda);
+      if (e === "deuda") return { cls: "rd-d", etiqueta: "Con deuda", texto: rdMoneda(c.deuda) };
+      if (e === "favor") return { cls: "rd-f", etiqueta: "Saldo a favor", texto: rdMoneda(-c.deuda) + " a favor" };
+      return { cls: "rd-c", etiqueta: "Saldo en cero", texto: rdMoneda(0) };
+    }
+
+    function rdFilasResumenHtml(grupos) {
+      return grupos.map(g => `<tr><td>${escapeHtml(g.nombre)}</td><td class="num">${g.res.total}</td><td class="num">${g.res.nDeuda}</td><td class="num">${g.res.nCero}</td><td class="num">${g.res.nFavor}</td><td class="num rd-d">${rdMoneda(g.res.deudaTotal)}</td><td class="num rd-f">${g.res.favorTotal ? rdMoneda(g.res.favorTotal) : "-"}</td></tr>`).join("");
+    }
+
+    function rdGrupoHtml(g, vista, abierto) {
+      const r = g.res;
+      let sub = "";
+      if (vista === "zona") {
+        const vs = rdAgruparPor(g.lista, "vendedor");
+        sub = `<div class="rd-mini"><div class="rd-scroll"><table class="rd-tabla"><thead><tr><th>Vendedor en esta zona</th><th class="num">Clientes</th><th class="num">Con deuda</th><th class="num">En cero</th><th class="num">A favor</th><th class="num">Deuda total</th><th class="num">Saldo a favor</th></tr></thead><tbody>${rdFilasResumenHtml(vs)}</tbody></table></div></div>`;
+      }
+      const titulos = { deuda: "Con deuda", cero: "Saldo en cero", favor: "Saldo a favor" };
+      const cuenta = { deuda: r.nDeuda, cero: r.nCero, favor: r.nFavor };
+      let filas = "", n = 0, previo = "";
+      g.lista.forEach(c => {
+        const e = rdEstado(c.deuda);
+        if (e !== previo) { filas += `<tr class="rd-sec"><td colspan="6">${titulos[e]} (${cuenta[e]})</td></tr>`; previo = e; }
+        n++;
+        const s = rdFilaSaldo(c);
+        filas += `<tr><td>${n}</td><td>${escapeHtml(c.nombre)}</td><td>${escapeHtml(c.rif)}</td><td>${escapeHtml(vista === "vendedor" ? c.zona : c.vendNombre)}</td><td class="${s.cls}">${s.etiqueta}</td><td class="num ${s.cls}">${s.texto}</td></tr>`;
+      });
+      const chips = `<span class="rd-chip deuda">Deuda total: ${rdMoneda(r.deudaTotal)}</span>`
+        + `<span class="rd-chip deuda">${r.nDeuda} con deuda</span>`
+        + `<span class="rd-chip cero">${r.nCero} en cero</span>`
+        + `<span class="rd-chip favor">${r.nFavor} a favor${r.nFavor ? " (" + rdMoneda(r.favorTotal) + ")" : ""}</span>`
+        + `<span class="rd-chip">${r.total} clientes</span>`;
+      return `<details class="rd-grupo"${abierto ? " open" : ""}><summary><span class="rd-tit">${escapeHtml(g.nombre)}</span>${chips}</summary>${sub}<div class="rd-scroll"><table class="rd-tabla"><thead><tr><th>#</th><th>Cliente</th><th>RIF / Cédula</th><th>${vista === "vendedor" ? "Zona" : "Vendedor"}</th><th>Estado</th><th class="num">Saldo ($)</th></tr></thead><tbody>${filas}</tbody></table></div></details>`;
+    }
+
+    function rdContenidoHtml(lista, grupos, abrirTodo) {
+      const R = rdResumen(lista);
+      const vista = rdVista;
+      const cards = `<div class="rd-resumen">
+        <div class="rd-card"><small>Deuda total</small><b class="rd-d">${rdMoneda(R.deudaTotal)}</b></div>
+        <div class="rd-card"><small>Clientes con deuda</small><b>${R.nDeuda}</b></div>
+        <div class="rd-card"><small>Clientes en cero</small><b>${R.nCero}</b></div>
+        <div class="rd-card"><small>Clientes con saldo a favor</small><b>${R.nFavor}</b>${R.nFavor ? ` <span>${rdMoneda(R.favorTotal)}</span>` : ""}</div>
+        <div class="rd-card"><small>Total de clientes</small><b>${R.total}</b></div>
+      </div>`;
+      const tablaResumen = `<div class="rd-sub">Totales ${vista === "vendedor" ? "por vendedor" : "por zona"}</div>
+        <div class="rd-scroll"><table class="rd-tabla"><thead><tr><th>${vista === "vendedor" ? "Vendedor" : "Zona"}</th><th class="num">Clientes</th><th class="num">Con deuda</th><th class="num">En cero</th><th class="num">A favor</th><th class="num">Deuda total</th><th class="num">Saldo a favor</th></tr></thead>
+        <tbody>${rdFilasResumenHtml(grupos)}<tr class="rd-total"><td>TOTAL</td><td class="num">${R.total}</td><td class="num">${R.nDeuda}</td><td class="num">${R.nCero}</td><td class="num">${R.nFavor}</td><td class="num rd-d">${rdMoneda(R.deudaTotal)}</td><td class="num rd-f">${R.favorTotal ? rdMoneda(R.favorTotal) : "-"}</td></tr></tbody></table></div>
+        <div class="rd-sub">Detalle de clientes</div>`;
+      return cards + tablaResumen + grupos.map(g => rdGrupoHtml(g, vista, abrirTodo)).join("");
+    }
+
+    function rdRender() {
+      if (rdModo === "cobranza") { rdRenderCobranza(); return; }
+      rdLlenarFiltro();
+      const cont = document.getElementById("rd-contenido");
+      if (!cont) return;
+      if (!rdClientes.length) {
+        cont.innerHTML = `<p style="padding:1rem; color:var(--text-muted);">No hay clientes registrados.</p>`;
+        return;
+      }
+      const lista = rdListaFiltrada();
+      const grupos = rdAgruparPor(lista, rdVista);
+      cont.innerHTML = rdContenidoHtml(lista, grupos, grupos.length === 1);
+    }
+
+    async function rdIniciar() {
+      if (!tienePermiso(currentUser, "reporte_deuda")) return;
+      rdInyectarCss();
+      const el = document.getElementById("modulo-reporte-deuda");
+      if (el) el.style.display = "block";
+      const est = document.getElementById("rd-estado");
+      est.style.color = "var(--text-muted)";
+      est.textContent = "Cargando clientes...";
+      try {
+        await rdCargarDatos();
+      } catch (e) {
+        est.style.color = "#dc2626";
+        est.textContent = "No se pudo cargar el reporte: " + (e.message || e);
+        return;
+      }
+      est.textContent = "";
+      rdFacturasPorCliente = null;   // las facturas se vuelven a leer al abrir la cobranza
+      rdRender();
+    }
+
+    function rdActualizarControles() {
+      const cob = rdModo === "cobranza";
+      document.getElementById("rd-tab-vendedor").classList.toggle("activo", !cob && rdVista === "vendedor");
+      document.getElementById("rd-tab-zona").classList.toggle("activo", !cob && rdVista === "zona");
+      document.getElementById("rd-tab-cobranza").classList.toggle("activo", cob);
+      document.getElementById("rd-cob-controles").style.display = cob ? "flex" : "none";
+      document.getElementById("rd-cob-agrupar").value = rdVista;
+    }
+
+    function rdCambiarVista(v) {
+      rdModo = "deuda";
+      rdVista = v;
+      rdFiltro = "";
+      rdActualizarControles();
+      rdRender();
+    }
+
+    function rdAbrirCobranza() {
+      rdModo = "cobranza";
+      rdFiltro = "";
+      rdActualizarControles();
+      rdRender();
+    }
+
+    function rdCobCambiar() {
+      const agrupar = document.getElementById("rd-cob-agrupar").value;
+      if (agrupar !== rdVista) { rdVista = agrupar; rdFiltro = ""; }
+      rdCobEstado = document.getElementById("rd-cob-estado").value;
+      rdCobOrden = document.getElementById("rd-cob-orden").value;
+      rdRender();
+    }
+
+    function rdAlCambiarFiltro() {
+      rdFiltro = document.getElementById("rd-filtro").value;
+      rdRender();
+    }
+
+    function rdExpandir(abrir) {
+      document.querySelectorAll("#rd-contenido details.rd-grupo").forEach(d => { d.open = abrir; });
+    }
+
+    /* ---------------------------------------------------------
+       COBRANZA POR FACTURAS
+       - Cada factura vence a los 7 días corridos después de su emisión: se cuentan todos los días
+         de forma continua, incluyendo sábados, domingos y feriados (el día de emisión no cuenta).
+       - Como los pagos cancelan primero las facturas más antiguas, la deuda actual del cliente
+         se reparte hacia atrás, desde la factura más reciente: así se sabe cuáles siguen pendientes.
+       - Si la deuda es mayor que la suma de las facturas cargadas, la diferencia se muestra
+         como "Saldo anterior sin factura".
+    --------------------------------------------------------- */
+    const COBRANZA_PLAZO_DIAS = 7;
+    // false = días corridos (cuentan todos los días). Con true solo cuentan de lunes a viernes, sin los feriados listados.
+    const COBRANZA_SOLO_HABILES = false;
+    const COBRANZA_FERIADOS = [];   // solo se usa si COBRANZA_SOLO_HABILES es true
+
+    function cobFechaDesdeISO(iso) { const p = iso.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2], 12, 0, 0); }
+    function cobISO(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+    function cobFmt(iso) { const p = iso.split("-"); return `${p[2]}/${p[1]}/${p[0]}`; }
+    function cobHoyISO() { return cobISO(new Date()); }
+    function cobCuentaDia(d) {
+      if (!COBRANZA_SOLO_HABILES) return true;   // días corridos: todos los días cuentan
+      const w = d.getDay();
+      return w !== 0 && w !== 6 && !COBRANZA_FERIADOS.includes(cobISO(d));
+    }
+
+    function cobSumarDias(iso, n) {
+      const d = cobFechaDesdeISO(iso);
+      let c = 0;
+      while (c < n) { d.setDate(d.getDate() + 1); if (cobCuentaDia(d)) c++; }
+      return cobISO(d);
+    }
+
+    // Días en el intervalo (desde, hasta]
+    function cobDiasEntre(desdeISO, hastaISO) {
+      const a = cobFechaDesdeISO(desdeISO), b = cobFechaDesdeISO(hastaISO);
+      if (b <= a) return 0;
+      let c = 0;
+      const d = new Date(a);
+      while (d < b) { d.setDate(d.getDate() + 1); if (cobCuentaDia(d)) c++; }
+      return c;
+    }
+
+    function cobEstadoFactura(venceISO, hoyISO) {
+      if (hoyISO > venceISO) return { clave: "vencida", dias: cobDiasEntre(venceISO, hoyISO) };
+      if (hoyISO === venceISO) return { clave: "hoy", dias: 0 };
+      const faltan = cobDiasEntre(hoyISO, venceISO);
+      return { clave: faltan <= 2 ? "porvencer" : "vigente", dias: faltan };
+    }
+
+    function cobEtiquetaEstado(est) {
+      const dh = n => `${n} día${n === 1 ? "" : "s"}${COBRANZA_SOLO_HABILES ? " háb." : ""}`;
+      if (est.clave === "vencida") return { cls: "rd-venc", corto: "Vencida", texto: est.dias > 0 ? `Vencida · ${dh(est.dias)} de atraso` : "Vencida" };
+      if (est.clave === "hoy") return { cls: "rd-hoy", corto: "Vence hoy", texto: "Vence hoy" };
+      if (est.clave === "porvencer") return { cls: "rd-porv", corto: "Por vencer", texto: `Por vencer · faltan ${dh(est.dias)}` };
+      return { cls: "rd-vig", corto: "Vigente", texto: `Vigente · faltan ${dh(est.dias)}` };
+    }
+
+    async function rdCargarFacturas() {
+      const rifs = rdClientes.filter(c => rdEstado(c.deuda) === "deuda").map(c => c.rif);
+      const mapa = {};
+      for (let i = 0; i < rifs.length; i += 80) {
+        const lote = rifs.slice(i, i + 80);
+        for (let desde = 0; ; desde += 1000) {
+          const { data, error } = await _supabase
+            .from("historial_cuentas")
+            .select("rif_cedula, referencia_doc, monto, fecha_emision, created_at")
+            .eq("tipo_movimiento", "FACTURA")
+            .in("rif_cedula", lote)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .range(desde, desde + 999);
+          if (error) throw error;
+          (data || []).forEach(f => { (mapa[f.rif_cedula] = mapa[f.rif_cedula] || []).push(f); });
+          if (!data || data.length < 1000) break;
+        }
+      }
+      rdFacturasPorCliente = mapa;
+    }
+
+    // Reparte la deuda actual del cliente entre sus facturas más recientes
+    function rdRepartirDeuda(c) {
+      const hechas = (rdFacturasPorCliente[c.rif] || []).map(f => ({
+        doc: f.referencia_doc || "S/N",
+        monto: Math.round(parseFloat(f.monto || 0) * 100) / 100,
+        emision: f.fecha_emision || (f.created_at ? cobISO(new Date(f.created_at)) : null),
+        aprox: !f.fecha_emision,
+        creado: f.created_at || ""
+      })).filter(f => f.emision);
+      hechas.sort((a, b) => b.emision.localeCompare(a.emision) || String(b.creado).localeCompare(String(a.creado)));
+
+      let resto = c.deuda;
+      const pendientes = [];
+      for (const f of hechas) {
+        if (resto <= 0.004) break;
+        const p = Math.min(f.monto, resto);
+        pendientes.push({ doc: f.doc, monto: f.monto, emision: f.emision, aprox: f.aprox, pendiente: Math.round(p * 100) / 100 });
+        resto = Math.round((resto - p) * 100) / 100;
+      }
+      return { facturas: pendientes, sinFactura: resto > 0.004 ? resto : 0 };
+    }
+
+    function rdConstruirCobranza() {
+      const hoy = cobHoyISO();
+      const items = [];
+      rdListaFiltrada().filter(c => rdEstado(c.deuda) === "deuda").forEach(c => {
+        const rep = rdRepartirDeuda(c);
+        let facs = rep.facturas.map(f => {
+          const vence = cobSumarDias(f.emision, COBRANZA_PLAZO_DIAS);
+          return Object.assign({}, f, { vence: vence, est: cobEstadoFactura(vence, hoy) });
+        });
+        facs.sort((a, b) => a.vence.localeCompare(b.vence) || a.emision.localeCompare(b.emision));
+        if (rdCobEstado) {
+          facs = facs.filter(f => rdCobEstado === "porvencer"
+            ? (f.est.clave === "hoy" || f.est.clave === "porvencer")
+            : f.est.clave === rdCobEstado);
+        }
+        const sinFactura = rdCobEstado ? 0 : rep.sinFactura;
+        if (!facs.length && !(sinFactura > 0)) return;
+
+        const it = { c: c, facs: facs, sinFactura: sinFactura, deuda: sinFactura, vencida: 0, porVencer: 0, vigente: 0,
+                     minVence: facs.length ? facs[0].vence : "9999-12-31" };
+        facs.forEach(f => {
+          it.deuda += f.pendiente;
+          if (f.est.clave === "vencida") it.vencida += f.pendiente;
+          else if (f.est.clave === "vigente") it.vigente += f.pendiente;
+          else it.porVencer += f.pendiente;
+        });
+        ["deuda", "vencida", "porVencer", "vigente"].forEach(k => { it[k] = Math.round(it[k] * 100) / 100; });
+        items.push(it);
+      });
+      return items;
+    }
+
+    function rdCobSumar(items) {
+      const t = { clientes: items.length, deuda: 0, vencida: 0, porVencer: 0, vigente: 0, sinFactura: 0 };
+      items.forEach(it => { t.deuda += it.deuda; t.vencida += it.vencida; t.porVencer += it.porVencer; t.vigente += it.vigente; t.sinFactura += it.sinFactura; });
+      Object.keys(t).forEach(k => { if (k !== "clientes") t[k] = Math.round(t[k] * 100) / 100; });
+      return t;
+    }
+
+    function rdCobAgrupar(items) {
+      const mapa = {};
+      items.forEach(it => {
+        const k = rdVista === "vendedor" ? it.c.vendKey : it.c.zona;
+        const n = rdVista === "vendedor" ? it.c.vendNombre : it.c.zona;
+        if (!mapa[k]) mapa[k] = { clave: k, nombre: n, items: [] };
+        mapa[k].items.push(it);
+      });
+      return Object.values(mapa).map(g => {
+        g.items.sort((a, b) => rdCobOrden === "vencimiento"
+          ? (a.minVence.localeCompare(b.minVence) || b.deuda - a.deuda)
+          : (b.deuda - a.deuda || a.c.nombre.localeCompare(b.c.nombre)));
+        g.tot = rdCobSumar(g.items);
+        return g;
+      }).sort((a, b) => (b.tot.deuda - a.tot.deuda) || a.nombre.localeCompare(b.nombre));
+    }
+
+    function rdCobGrupoHtml(g, abierto) {
+      const t = g.tot;
+      const chips = `<span class="rd-chip deuda">Deuda: ${rdMoneda(t.deuda)}</span>`
+        + `<span class="rd-chip deuda">Vencida: ${rdMoneda(t.vencida)}</span>`
+        + `<span class="rd-chip cero">Por vencer: ${rdMoneda(t.porVencer)}</span>`
+        + `<span class="rd-chip favor">Vigente: ${rdMoneda(t.vigente)}</span>`
+        + (t.sinFactura > 0 ? `<span class="rd-chip">Sin factura: ${rdMoneda(t.sinFactura)}</span>` : "")
+        + `<span class="rd-chip">${t.clientes} cliente${t.clientes === 1 ? "" : "s"}</span>`;
+      let filas = "";
+      g.items.forEach(it => {
+        const c = it.c;
+        const extra = rdVista === "vendedor" ? c.zona : c.vendNombre;
+        const der = rdCobEstado
+          ? `Pendiente mostrado: ${rdMoneda(it.deuda)} (deuda total ${rdMoneda(c.deuda)})`
+          : `Deuda: ${rdMoneda(c.deuda)}`;
+        filas += `<tr class="rd-cli"><td colspan="4">${escapeHtml(c.nombre)} · ${escapeHtml(c.rif)} · ${escapeHtml(extra)}</td><td colspan="2" class="num rd-d">${der}</td></tr>`;
+        it.facs.forEach(f => {
+          const e = cobEtiquetaEstado(f.est);
+          filas += `<tr><td>${escapeHtml(f.doc)}</td><td>${cobFmt(f.emision)}${f.aprox ? " (aprox.)" : ""}</td><td>${cobFmt(f.vence)}</td><td class="num">${rdMoneda(f.monto)}</td><td class="num">${rdMoneda(f.pendiente)}</td><td class="${e.cls}">${e.texto}</td></tr>`;
+        });
+        if (it.sinFactura > 0) {
+          filas += `<tr><td colspan="4" class="rd-c">Saldo anterior sin factura</td><td class="num">${rdMoneda(it.sinFactura)}</td><td class="rd-c">Sin fecha</td></tr>`;
+        }
+      });
+      return `<details class="rd-grupo"${abierto ? " open" : ""}><summary><span class="rd-tit">${escapeHtml(g.nombre)}</span>${chips}</summary><div class="rd-scroll"><table class="rd-tabla"><thead><tr><th>Factura</th><th>Emisión</th><th>Vence</th><th class="num">Monto factura</th><th class="num">Pendiente</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div></details>`;
+    }
+
+    function rdCobContenidoHtml(grupos, abrirTodo) {
+      const todos = [].concat(...grupos.map(g => g.items));
+      const T = rdCobSumar(todos);
+      const hayAprox = todos.some(it => it.facs.some(f => f.aprox));
+      const cards = `<div class="rd-resumen">
+        <div class="rd-card"><small>Deuda${rdCobEstado ? " mostrada" : " total"}</small><b class="rd-d">${rdMoneda(T.deuda)}</b></div>
+        <div class="rd-card"><small>Vencida</small><b class="rd-d">${rdMoneda(T.vencida)}</b></div>
+        <div class="rd-card"><small>Vence hoy / por vencer</small><b>${rdMoneda(T.porVencer)}</b></div>
+        <div class="rd-card"><small>Vigente</small><b class="rd-f">${rdMoneda(T.vigente)}</b></div>
+        <div class="rd-card"><small>Clientes</small><b>${T.clientes}</b>${T.sinFactura > 0 ? ` <span>Sin factura: ${rdMoneda(T.sinFactura)}</span>` : ""}</div>
+      </div>`;
+      const filasResumen = grupos.map(g => `<tr><td>${escapeHtml(g.nombre)}</td><td class="num">${g.tot.clientes}</td><td class="num rd-d">${rdMoneda(g.tot.deuda)}</td><td class="num rd-d">${rdMoneda(g.tot.vencida)}</td><td class="num">${rdMoneda(g.tot.porVencer)}</td><td class="num rd-f">${rdMoneda(g.tot.vigente)}</td><td class="num">${g.tot.sinFactura > 0 ? rdMoneda(g.tot.sinFactura) : "-"}</td></tr>`).join("");
+      const tablaResumen = `<div class="rd-sub">Totales ${rdVista === "vendedor" ? "por vendedor" : "por zona"}</div>
+        <div class="rd-scroll"><table class="rd-tabla"><thead><tr><th>${rdVista === "vendedor" ? "Vendedor" : "Zona"}</th><th class="num">Clientes</th><th class="num">Deuda</th><th class="num">Vencida</th><th class="num">Por vencer</th><th class="num">Vigente</th><th class="num">Sin factura</th></tr></thead>
+        <tbody>${filasResumen}<tr class="rd-total"><td>TOTAL</td><td class="num">${T.clientes}</td><td class="num rd-d">${rdMoneda(T.deuda)}</td><td class="num rd-d">${rdMoneda(T.vencida)}</td><td class="num">${rdMoneda(T.porVencer)}</td><td class="num rd-f">${rdMoneda(T.vigente)}</td><td class="num">${T.sinFactura > 0 ? rdMoneda(T.sinFactura) : "-"}</td></tr></tbody></table></div>
+        <div class="rd-nota">Plazo: ${COBRANZA_PLAZO_DIAS} días corridos desde la fecha de emisión (cuentan todos los días, incluso fines de semana y feriados). "Por vencer" = vence en 2 días o menos.${hayAprox ? " (aprox.) = la factura no tiene fecha de emisión guardada; se usa el día en que se cargó el Excel." : ""}</div>
+        <div class="rd-sub">Detalle por cliente y factura</div>`;
+      return cards + tablaResumen + grupos.map(g => rdCobGrupoHtml(g, abrirTodo)).join("");
+    }
+
+    async function rdRenderCobranza() {
+      rdLlenarFiltro();
+      const cont = document.getElementById("rd-contenido");
+      if (!cont) return;
+      if (rdFacturasPorCliente === null) {
+        cont.innerHTML = `<p style="padding:1rem; color:var(--text-muted);">Cargando facturas...</p>`;
+        try {
+          await rdCargarFacturas();
+        } catch (e) {
+          const msg = String((e && e.message) || e);
+          cont.innerHTML = `<p style="padding:1rem; color:#dc2626; font-weight:700;">No se pudieron cargar las facturas: ${escapeHtml(msg)}${msg.includes("fecha_emision") ? " — Falta la columna fecha_emision en Supabase (alter table historial_cuentas add column if not exists fecha_emision date;)." : ""}</p>`;
+          return;
+        }
+        if (rdModo !== "cobranza") return;   // si cambió de pestaña mientras cargaba
+      }
+      const grupos = rdCobAgrupar(rdConstruirCobranza());
+      cont.innerHTML = grupos.length
+        ? rdCobContenidoHtml(grupos, grupos.length === 1)
+        : `<p style="padding:1rem; color:var(--text-muted);">No hay facturas pendientes con estos filtros.</p>`;
+    }
+
+    function rdCobTextoFiltros(grupos) {
+      const estados = { "": "Todas las facturas", vencida: "Solo vencidas", porvencer: "Vencen hoy o por vencer", vigente: "Solo vigentes" };
+      const quien = rdFiltro && grupos[0] ? grupos[0].nombre : "Todos";
+      return `${rdVista === "vendedor" ? "Vendedor" : "Zona"}: ${quien} • ${estados[rdCobEstado]} • Orden: ${rdCobOrden === "deuda" ? "mayor deuda" : "vencimiento más antiguo"}`;
+    }
+
+    function rdImprimirCobranza() {
+      if (rdFacturasPorCliente === null) return;
+      const grupos = rdCobAgrupar(rdConstruirCobranza());
+      if (!grupos.length) { alert("No hay facturas pendientes para imprimir con estos filtros."); return; }
+      const salto = document.getElementById("rd-salto").checked;
+      const titulo = rdVista === "vendedor" ? "Reporte de Cobranza por Vendedor" : "Reporte de Cobranza por Zona";
+      const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${titulo}</title><style>${RD_CSS_BASE}${RD_CSS_IMPRESION}</style></head>`
+        + `<body class="${salto ? "rd-salto" : ""}"><h1>${titulo}</h1>`
+        + `<div class="rd-meta">Comercializadora Rami2020 CA &bull; ${escapeHtml(rdCobTextoFiltros(grupos))} &bull; Generado: ${new Date().toLocaleString("es-VE")}</div>`
+        + rdCobContenidoHtml(grupos, true) + `</body></html>`;
+      const w = window.open("", "_blank");
+      if (!w) { alert("Permita las ventanas emergentes de este sitio para poder imprimir el reporte."); return; }
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 400);
+    }
+
+    function cobSerialExcel(iso) {
+      const p = iso.split("-").map(Number);
+      return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / 86400000) + 25569;
+    }
+
+    function rdExportarExcelCobranza() {
+      if (typeof XLSX === "undefined") { alert("La librería de Excel no está cargada. Verifique su conexión a internet."); return; }
+      if (rdFacturasPorCliente === null) return;
+      const grupos = rdCobAgrupar(rdConstruirCobranza());
+      if (!grupos.length) { alert("No hay facturas pendientes para exportar con estos filtros."); return; }
+      const todos = [].concat(...grupos.map(g => g.items));
+      const T = rdCobSumar(todos);
+
+      const resumen = [[rdVista === "vendedor" ? "Vendedor" : "Zona", "Clientes", "Deuda ($)", "Vencida ($)", "Por vencer ($)", "Vigente ($)", "Sin factura ($)"]];
+      grupos.forEach(g => resumen.push([g.nombre, g.tot.clientes, g.tot.deuda, g.tot.vencida, g.tot.porVencer, g.tot.vigente, g.tot.sinFactura]));
+      resumen.push(["TOTAL", T.clientes, T.deuda, T.vencida, T.porVencer, T.vigente, T.sinFactura]);
+
+      const detalle = [["Vendedor", "Zona", "RIF / Cédula", "Cliente", "Factura", "Emisión", "Vencimiento", "Monto factura ($)", "Pendiente ($)", "Estado", "Días de atraso", "Días que faltan", "Emisión aproximada"]];
+      const celdasFecha = [];
+      grupos.forEach(g => g.items.forEach(it => {
+        const c = it.c;
+        it.facs.forEach(f => {
+          const e = cobEtiquetaEstado(f.est);
+          detalle.push([c.vendNombre, c.zona, c.rif, c.nombre, f.doc, cobSerialExcel(f.emision), cobSerialExcel(f.vence), f.monto, f.pendiente, e.corto,
+                        f.est.clave === "vencida" ? f.est.dias : 0, f.est.clave === "vencida" ? 0 : f.est.dias, f.aprox ? "Sí" : "No"]);
+          celdasFecha.push(detalle.length - 1);
+        });
+        if (it.sinFactura > 0) {
+          detalle.push([c.vendNombre, c.zona, c.rif, c.nombre, "Saldo anterior sin factura", "", "", "", it.sinFactura, "Sin fecha", "", "", ""]);
+        }
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const agregar = (aoa, nombre, anchos, colsDinero, colsFecha, filasFecha) => {
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws["!cols"] = anchos.map(w => ({ wch: w }));
+        colsDinero.forEach(ci => {
+          for (let r = 1; r < aoa.length; r++) {
+            const cell = ws[XLSX.utils.encode_cell({ r: r, c: ci })];
+            if (cell && typeof cell.v === "number") cell.z = "#,##0.00";
+          }
+        });
+        (filasFecha || []).forEach(r => colsFecha.forEach(ci => {
+          const cell = ws[XLSX.utils.encode_cell({ r: r, c: ci })];
+          if (cell && typeof cell.v === "number") cell.z = "dd/mm/yyyy";
+        }));
+        XLSX.utils.book_append_sheet(wb, ws, nombre);
+      };
+      agregar(resumen, "Totales", [30, 10, 16, 16, 16, 16, 16], [2, 3, 4, 5, 6], [], []);
+      agregar(detalle, "Facturas pendientes", [26, 22, 16, 40, 22, 12, 12, 16, 16, 12, 12, 12, 12], [7, 8], [5, 6], celdasFecha);
+
+      XLSX.writeFile(wb, `Reporte_Cobranza_${rdVista}_${new Date().toLocaleDateString("en-CA")}.xlsx`);
+    }
+
+    function rdImprimir() {
+      if (rdModo === "cobranza") { rdImprimirCobranza(); return; }
+      if (!rdClientes.length) return;
+      const lista = rdListaFiltrada();
+      const grupos = rdAgruparPor(lista, rdVista);
+      const salto = document.getElementById("rd-salto").checked;
+      const titulo = rdVista === "vendedor" ? "Reporte de Deuda por Vendedor" : "Reporte de Deuda por Zona";
+      const filtroTxt = rdFiltro && grupos[0] ? grupos[0].nombre : "Todos";
+      const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${titulo}</title><style>${RD_CSS_BASE}${RD_CSS_IMPRESION}</style></head>`
+        + `<body class="${salto ? "rd-salto" : ""}"><h1>${titulo}</h1>`
+        + `<div class="rd-meta">Comercializadora Rami2020 CA &bull; ${rdVista === "vendedor" ? "Vendedor" : "Zona"}: ${escapeHtml(filtroTxt)} &bull; Generado: ${new Date().toLocaleString("es-VE")}</div>`
+        + rdContenidoHtml(lista, grupos, true) + `</body></html>`;
+      const w = window.open("", "_blank");
+      if (!w) { alert("Permita las ventanas emergentes de este sitio para poder imprimir el reporte."); return; }
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 400);
+    }
+
+    function rdExportarExcel() {
+      if (rdModo === "cobranza") { rdExportarExcelCobranza(); return; }
+      if (typeof XLSX === "undefined") { alert("La librería de Excel no está cargada. Verifique su conexión a internet."); return; }
+      if (!rdClientes.length) return;
+
+      const lista = rdListaFiltrada();
+      const R = rdResumen(lista);
+      const porVend = rdAgruparPor(lista, "vendedor");
+      const porZona = rdAgruparPor(lista, "zona");
+      const cab = ["Clientes", "Con deuda", "En cero", "Con saldo a favor", "Deuda total ($)", "Saldo a favor total ($)"];
+      const datos = (r) => [r.total, r.nDeuda, r.nCero, r.nFavor, r.deudaTotal, r.favorTotal];
+
+      const hojaVend = [["Vendedor", ...cab], ...porVend.map(g => [g.nombre, ...datos(g.res)]), ["TOTAL", ...datos(R)]];
+      const hojaZona = [["Zona", ...cab], ...porZona.map(g => [g.nombre, ...datos(g.res)]), ["TOTAL", ...datos(R)]];
+
+      const cruce = [["Zona", "Vendedor", ...cab]];
+      porZona.forEach(z => rdAgruparPor(z.lista, "vendedor").forEach(v => cruce.push([z.nombre, v.nombre, ...datos(v.res)])));
+      cruce.push(["TOTAL", "", ...datos(R)]);
+
+      const etiquetas = { deuda: "Con deuda", cero: "Saldo en cero", favor: "Saldo a favor" };
+      const detalle = [["Vendedor", "Zona", "RIF / Cédula", "Cliente", "Estado", "Saldo ($) (+ deuda / - a favor)"]];
+      (rdVista === "vendedor" ? porVend : porZona).forEach(g => g.lista.forEach(c => {
+        detalle.push([c.vendNombre, c.zona, c.rif, c.nombre, etiquetas[rdEstado(c.deuda)], c.deuda]);
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const agregar = (aoa, nombre, anchos, colsDinero) => {
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws["!cols"] = anchos.map(w => ({ wch: w }));
+        colsDinero.forEach(ci => {
+          for (let r = 1; r < aoa.length; r++) {
+            const cell = ws[XLSX.utils.encode_cell({ r: r, c: ci })];
+            if (cell && typeof cell.v === "number") cell.z = "#,##0.00";
+          }
+        });
+        XLSX.utils.book_append_sheet(wb, ws, nombre);
+      };
+      agregar(hojaVend, "Totales por vendedor", [30, 10, 11, 10, 18, 22, 24], [5, 6]);
+      agregar(hojaZona, "Totales por zona", [30, 10, 11, 10, 18, 22, 24], [5, 6]);
+      agregar(cruce, "Zona y vendedor", [26, 30, 10, 11, 10, 18, 22, 24], [6, 7]);
+      agregar(detalle, "Detalle de clientes", [28, 24, 16, 42, 15, 26], [5]);
+
+      XLSX.writeFile(wb, `Reporte_Deuda_${rdVista}_${new Date().toLocaleDateString("en-CA")}.xlsx`);
+    }
+
     /* =========================================================
        ESTADO DE CUENTA
        - Vendedores: solo ven clientes con vendedor_email = su usuario.
@@ -4003,6 +4980,7 @@
     function ocultarEstadoCuenta() {
       const el = document.getElementById("modulo-estado-cuenta");
       if (el) el.style.display = "none";
+      ocultarReporteDeuda();
     }
 
     function iniciarEstadoCuenta() {
@@ -4840,6 +5818,7 @@
         return;
       }
       renderModalCart();
+      prepararClienteOrden();
       document.getElementById("orderModal").style.display = "flex";
     }
 
@@ -4876,6 +5855,7 @@
         document.getElementById("sectorSelect").value = "";
         document.getElementById("addressInput").value = "";
         document.getElementById("orderNoteInput").value = "";
+        reiniciarSeleccionCliente();
 
         filterProducts();
       }
@@ -4937,12 +5917,23 @@
       const direccion = document.getElementById("addressInput").value.trim();
       const notaCliente = document.getElementById("orderNoteInput").value.trim();
 
+      if (clienteOrden.modo === "buscar") {
+        alert("Busque y seleccione un cliente registrado, o pulse «Cliente nuevo» para registrarlo.");
+        return;
+      }
+
+      // Cliente nuevo: si el RIF ya existe, se avisa y no se envía la orden
+      if (clienteOrden.modo === "nuevo") {
+        const yaRegistrado = await ejecutarBusquedaClienteAuto();
+        if (yaRegistrado) return;
+      }
+
       if (!cliente || !numDocOnly || !telefono || !sector) {
         alert("Por favor completa el Cliente, la Cédula / RIF, el Teléfono y selecciona un Sector.");
         return;
       }
 
-      await guardarOActualizarClienteBD({
+      const resultadoCliente = await guardarOActualizarClienteBD({
         rif_cedula: rifCedula,
         nombre: cliente,
         telefono: telefono,
@@ -4950,6 +5941,10 @@
         sector: sector,
         vendedor_email: currentUser ? currentUser.usuario : ''
       });
+      if (resultadoCliente && resultadoCliente.duplicado) {
+        alert("Ese RIF / Cédula acaba de ser registrado por otro usuario. Búsquelo en el buscador y genere la orden de nuevo.");
+        return;
+      }
 
       const fechaActual = new Date().toLocaleDateString("es-VE");
       const ahora = new Date();
@@ -5148,6 +6143,7 @@
       document.getElementById("sectorSelect").value = "";
       document.getElementById("addressInput").value = "";
       document.getElementById("orderNoteInput").value = "";
+      reiniciarSeleccionCliente();
 
       filterProducts();
     }
