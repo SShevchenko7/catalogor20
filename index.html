@@ -1155,6 +1155,27 @@
           </div>
           <div id="status-importacion-excel" class="mt-2 text-xs font-bold"></div>
           <div id="detalle-importacion-excel" style="margin-top: 0.75rem; overflow-x: auto;"></div>
+          <div id="premium-no-encontrados" style="margin-top: 0.75rem; overflow-x: auto;"></div>
+
+          <div style="margin-top: 1rem; padding: 0.9rem; border: 1px dashed var(--border-color); border-radius: 10px; background: #f8fafc;">
+            <div style="font-size: 0.85rem; font-weight: 800; margin-bottom: 0.2rem;"><i class="fa-solid fa-link"></i> Vincular código de Premium a un cliente</div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin: 0 0 0.6rem;">Para clientes cuyo código en Premium no es su RIF o cédula (por ejemplo, MANHATTAN MJ). El RIF / cédula del cliente en el sistema no se modifica.</p>
+            <div class="admin-form-grid">
+              <div class="admin-input-group">
+                <label>Código en Premium (como sale en el Excel)</label>
+                <input type="text" id="premium-codigo" autocomplete="off" placeholder="Ej: MANHATTAN MJ" />
+              </div>
+              <div class="admin-input-group">
+                <label>Cliente en el sistema (RIF, cédula o nombre)</label>
+                <input type="text" id="premium-cliente" autocomplete="off" placeholder="Busque al cliente" />
+              </div>
+              <div>
+                <button type="button" onclick="vincularCodigoPremium()" class="admin-btn-primary"><i class="fa-solid fa-link"></i> Vincular</button>
+              </div>
+            </div>
+            <div id="premium-vincular-msg" style="margin-top: 0.5rem; font-size: 0.8rem; font-weight: 700;"></div>
+            <div id="premium-lista" style="margin-top: 0.75rem; overflow-x: auto;"></div>
+          </div>
         </div>
 
         <!-- SECCIÓN 2: KARDEX / ESTADO DE CUENTA DE CLIENTE -->
@@ -2123,17 +2144,14 @@
     async function buscarClienteEnBD(rifCedula) {
       if (!rifCedula) return null;
       try {
-        const { data, error } = await _supabase
-          .from("clientes")
-          .select("*")
-          .eq("rif_cedula", rifCedula.toUpperCase())
-          .maybeSingle();
-
-        if (error) {
-          console.error("Error al buscar cliente en BD:", error);
-          return null;
+        // Primero el código tal cual está guardado; si no, en mayúsculas
+        const candidatos = [...new Set([String(rifCedula), String(rifCedula).toUpperCase()])];
+        for (const cod of candidatos) {
+          const { data, error } = await _supabase.from("clientes").select("*").eq("rif_cedula", cod).limit(1);
+          if (error) { console.error("Error al buscar cliente en BD:", error); return null; }
+          if (data && data.length > 0) return data[0];
         }
-        return data;
+        return null;
       } catch (e) {
         console.error("Error en la consulta de clientes:", e);
         return null;
@@ -2322,19 +2340,32 @@
       return verificacionRifEnCurso;
     }
 
-    // Devuelve true si el RIF / Cédula ya estaba registrado
+    // Devuelve true si el RIF / Cédula ya estaba registrado (con cualquier formato: J-123, J123 o código de Premium)
     async function verificarRifClienteNuevo() {
       if (clienteOrden.modo !== "nuevo") return false;
       const rif = construirRifCedulaCompleto();
       if (!rif) return false;
+      const clave = normalizarRifCedula(rif);
 
-      const existente = await buscarClienteEnBD(rif);
+      let existente = null;
+      try {
+        const todos = await obtenerClientesParaBusqueda(true);
+        existente = todos.find(c => normalizarRifCedula(c.rif_cedula) === clave || normalizarRifCedula(c.codigo_premium) === clave) || null;
+      } catch (e) {
+        console.error("No se pudo comprobar si el RIF ya existe:", e);
+      }
       if (!existente || clienteOrden.modo !== "nuevo") return false;
 
       const num = document.getElementById("numDocInput");
       if (num) num.value = "";
-      setInfoClienteOrden("Ese RIF / Cédula ya está registrado. Búsquelo en el buscador o escriba uno distinto.", "#dc2626");
-      alert(`El RIF / Cédula ${existente.rif_cedula} ya está registrado a nombre de "${existente.nombre || ""}".\n\nNo se puede crear como cliente nuevo.\n• Si es ese cliente: pulse «Buscar otro cliente» y búsquelo en el buscador.\n• Si es otro cliente: escriba un RIF / Cédula distinto.`);
+      const ajeno = esVendedorRestringido() && !mismoUsuario(existente.vendedor_email, currentUser && currentUser.usuario);
+      if (ajeno) {
+        setInfoClienteOrden("Ese RIF / Cédula ya está registrado y pertenece a otro vendedor.", "#dc2626");
+        alert(`El RIF / Cédula ${rif} ya está registrado y pertenece a otro vendedor.\n\nNo se puede crear como cliente nuevo. Si necesita atender a este cliente, comuníquese con el administrador.`);
+      } else {
+        setInfoClienteOrden("Ese RIF / Cédula ya está registrado. Búsquelo en el buscador o escriba uno distinto.", "#dc2626");
+        alert(`El RIF / Cédula ${existente.rif_cedula} ya está registrado a nombre de "${existente.nombre || ""}".\n\nNo se puede crear como cliente nuevo.\n• Si es ese cliente: pulse «Buscar otro cliente» y búsquelo en el buscador.\n• Si es otro cliente: escriba un RIF / Cédula distinto.`);
+      }
       if (num) num.focus();
       return true;
     }
@@ -2344,44 +2375,53 @@
       const { rif_cedula, nombre, telefono, direccion, sector, vendedor_email } = datosCliente;
       if (!rif_cedula || !nombre) return {};
 
-      const rif = rif_cedula.trim().toUpperCase();
+      const codigoEscrito = rif_cedula.trim();
       const tel = telefono ? telefono.trim() : "";
       const dir = direccion ? direccion.trim() : "";
 
       // Cliente que ya existe: SOLO se actualizan teléfono y dirección (y el sector únicamente
       // si el cliente no tenía uno). Nombre, RIF y vendedor nunca se modifican desde la orden.
-      const actualizarContacto = async (sectorActual) => {
+      const actualizarContacto = async (codigoGuardado, sectorActual) => {
         const cambios = { telefono: tel, direccion: dir };
         if (!((sectorActual || "").trim()) && sector) cambios.sector = sector.trim();
-        const { error } = await _supabase.from("clientes").update(cambios).eq("rif_cedula", rif);
+        const { error } = await _supabase.from("clientes").update(cambios).eq("rif_cedula", codigoGuardado);
         if (error) console.error("Error al actualizar teléfono/dirección del cliente:", error);
+        invalidarCacheClientes();
       };
 
       try {
+        // 1) ¿Existe con ese código exacto (o en mayúsculas)?
+        const candidatos = [...new Set([codigoEscrito, codigoEscrito.toUpperCase()])];
         const { data: previo, error: errPrevio } = await _supabase
           .from("clientes")
           .select("rif_cedula, sector")
-          .eq("rif_cedula", rif)
+          .in("rif_cedula", candidatos)
           .limit(1);
         if (errPrevio) {
           console.error("No se pudo comprobar si el cliente ya existe:", errPrevio);
           return {};
         }
-
         if (previo && previo.length > 0) {
-          await actualizarContacto(previo[0].sector);
+          await actualizarContacto(previo[0].rif_cedula, previo[0].sector);
           return {};
         }
 
-        // Cliente nuevo: se inserta (nunca se sobrescribe uno existente)
+        // 2) ¿Existe con otro formato (J123 frente a J-123) o como código de Premium?
+        const clave = normalizarRifCedula(codigoEscrito);
+        const todos = await obtenerClientesParaBusqueda(true);
+        const parecido = todos.find(c => normalizarRifCedula(c.rif_cedula) === clave || normalizarRifCedula(c.codigo_premium) === clave);
+        if (parecido) return { duplicado: true };   // no se crea un segundo cliente
+
+        // 3) Cliente nuevo: se inserta (nunca se sobrescribe uno existente)
         const { error } = await _supabase.from("clientes").insert({
-          rif_cedula: rif,
+          rif_cedula: codigoEscrito.toUpperCase(),
           nombre: nombre.trim(),
           telefono: tel,
           direccion: dir,
           sector: sector ? sector.trim() : "",
           vendedor_email: vendedor_email || ""
         });
+        invalidarCacheClientes();
 
         if (error) {
           if (error.code === "23505") return { duplicado: true };  // otro usuario lo creó justo antes
@@ -2621,6 +2661,7 @@
           cargarMotivosAjuste();
           cargarAjustes();
           cargarPagosPendientes();
+          cargarCodigosPremiumVinculados();
         }
       } else if (modulo === 'estado_cuenta') {
         if (appLayout) appLayout.style.display = "grid";
@@ -3076,6 +3117,156 @@
       return null;
     }
 
+    // ----- Códigos de Premium que no coinciden con el RIF / cédula del cliente -----
+    const SQL_CODIGO_PREMIUM = "alter table clientes add column if not exists codigo_premium text;";
+
+    async function leerTodosLosClientes(campos) {
+      let todos = [];
+      for (let desde = 0; ; desde += 1000) {
+        const { data, error } = await _supabase.from("clientes").select(campos).order("rif_cedula").range(desde, desde + 999);
+        if (error) throw error;
+        todos = todos.concat(data || []);
+        if (!data || data.length < 1000) break;
+      }
+      return todos;
+    }
+
+    function mostrarCodigosNoEncontrados(lista) {
+      const div = document.getElementById("premium-no-encontrados");
+      if (!div) return;
+      if (!lista.length) { div.innerHTML = ""; return; }
+      lista.sort((a, b) => b.montoBs - a.montoBs);
+      const td = 'style="padding: 6px 10px; border-bottom: 1px solid var(--border-color);"';
+      div.innerHTML = `
+        <div style="font-size: 0.8rem; font-weight: 700; margin-bottom: 0.4rem; color: #b45309;">
+          Códigos del Excel que no corresponden a ningún cliente (esas facturas NO se cargaron):
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; font-weight: 400;">
+          <thead>
+            <tr style="text-align: left; background: #fef3c7;">
+              <th style="padding: 6px 10px;">Código en el Excel</th>
+              <th style="padding: 6px 10px;">Nombre en el Excel</th>
+              <th style="padding: 6px 10px; text-align: right;">Facturas</th>
+              <th style="padding: 6px 10px; text-align: right;">Monto Bs.</th>
+              <th style="padding: 6px 10px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lista.map(f => `
+              <tr>
+                <td ${td}>${escapeHtml(f.codigo)}</td>
+                <td ${td}>${escapeHtml(f.nombre)}</td>
+                <td ${td} align="right">${f.facturas}</td>
+                <td ${td} align="right">${fmtVE(f.montoBs)}</td>
+                <td ${td}><button type="button" class="admin-btn-primary" style="padding: 4px 10px; font-size: 0.75rem;" data-codigo="${escapeHtml(f.codigo)}" onclick="prepararVinculoPremium(this.dataset.codigo)">Vincular</button></td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem;">
+          Pulse «Vincular», elija al cliente en el recuadro de abajo y vuelva a cargar el mismo Excel: las facturas ya cargadas no se duplican.
+        </div>`;
+    }
+
+    function prepararVinculoPremium(codigo) {
+      const c = document.getElementById("premium-codigo");
+      const cli = document.getElementById("premium-cliente");
+      if (c) c.value = codigo;
+      if (cli) { cli.value = ""; cli.focus(); cli.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    }
+
+    async function vincularCodigoPremium() {
+      const msg = document.getElementById("premium-vincular-msg");
+      const setMsg = (t, color) => { msg.style.color = color || "var(--text-muted)"; msg.textContent = t; };
+      const codigo = document.getElementById("premium-codigo").value.trim().toUpperCase();
+      const textoCliente = document.getElementById("premium-cliente").value.trim();
+      if (!codigo) { setMsg("Escriba el código tal como sale en el Excel de Premium.", "#dc2626"); return; }
+      if (!textoCliente) { setMsg("Busque y elija al cliente al que pertenece ese código.", "#dc2626"); return; }
+
+      setMsg("Comprobando...");
+      const r = await resolverClienteTexto(textoCliente);
+      if (!r.cliente) { setMsg(mensajeClienteNoResuelto(r, textoCliente), "#dc2626"); return; }
+      const cli = r.cliente;
+      const clave = normalizarRifCedula(codigo);
+
+      try {
+        const todos = await leerTodosLosClientes("rif_cedula, nombre, codigo_premium");
+
+        const esRif = todos.find(c => normalizarRifCedula(c.rif_cedula) === clave);
+        if (esRif) {
+          setMsg(`Ese código ya es el RIF / cédula de ${esRif.nombre} (${esRif.rif_cedula}); no hace falta vincularlo.`, "#dc2626");
+          return;
+        }
+        const usadoPorOtro = todos.find(c => c.codigo_premium && normalizarRifCedula(c.codigo_premium) === clave && c.rif_cedula !== cli.rif_cedula);
+        if (usadoPorOtro) {
+          setMsg(`Ese código ya está vinculado a ${usadoPorOtro.nombre} (${usadoPorOtro.rif_cedula}). Quítelo allí primero.`, "#dc2626");
+          return;
+        }
+        const actual = todos.find(c => c.rif_cedula === cli.rif_cedula);
+        if (actual && actual.codigo_premium && normalizarRifCedula(actual.codigo_premium) !== clave) {
+          setMsg(`Ese cliente ya tiene vinculado el código «${actual.codigo_premium}». Quítelo primero si desea cambiarlo.`, "#dc2626");
+          return;
+        }
+
+        const { error } = await _supabase.from("clientes").update({ codigo_premium: codigo }).eq("rif_cedula", cli.rif_cedula);
+        if (error) throw error;
+
+        setMsg(`✅ Código «${codigo}» vinculado a ${cli.nombre} (${cli.rif_cedula}). Vuelva a cargar el Excel para importar sus facturas.`, "#16a34a");
+        document.getElementById("premium-codigo").value = "";
+        document.getElementById("premium-cliente").value = "";
+        document.querySelectorAll("#premium-no-encontrados button[data-codigo]").forEach(b => {
+          if (normalizarRifCedula(b.dataset.codigo) === clave) { const tr = b.closest("tr"); if (tr) tr.remove(); }
+        });
+        invalidarCacheClientes();
+        cargarCodigosPremiumVinculados();
+      } catch (e) {
+        const m = String((e && e.message) || e);
+        setMsg(m.includes("codigo_premium")
+          ? "Falta crear la columna codigo_premium en Supabase. Ejecute en el SQL Editor: " + SQL_CODIGO_PREMIUM
+          : "No se pudo vincular: " + m, "#dc2626");
+      }
+    }
+
+    async function cargarCodigosPremiumVinculados() {
+      const div = document.getElementById("premium-lista");
+      if (!div) return;
+      try {
+        const todos = await leerTodosLosClientes("rif_cedula, nombre, codigo_premium");
+        const lista = todos.filter(c => (c.codigo_premium || "").trim());
+        if (!lista.length) {
+          div.innerHTML = `<div style="font-size: 0.78rem; color: var(--text-muted);">Todavía no hay códigos de Premium vinculados.</div>`;
+          return;
+        }
+        const td = 'style="padding: 5px 10px; border-bottom: 1px solid var(--border-color);"';
+        div.innerHTML = `
+          <div style="font-size: 0.8rem; font-weight: 700; margin-bottom: 0.3rem;">Códigos de Premium vinculados:</div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; font-weight: 400;">
+            <thead><tr style="text-align: left; background: #f1f5f9;"><th style="padding: 5px 10px;">Código en Premium</th><th style="padding: 5px 10px;">Cliente</th><th style="padding: 5px 10px;">RIF / Cédula</th><th style="padding: 5px 10px;"></th></tr></thead>
+            <tbody>${lista.map(c => `
+              <tr>
+                <td ${td}>${escapeHtml(c.codigo_premium)}</td>
+                <td ${td}>${escapeHtml(c.nombre)}</td>
+                <td ${td}>${escapeHtml(c.rif_cedula)}</td>
+                <td ${td}><button type="button" style="padding: 3px 9px; font-size: 0.75rem; border: none; border-radius: 6px; background: #fee2e2; color: #b91c1c; font-weight: 700; cursor: pointer;" data-rif="${escapeHtml(c.rif_cedula)}" onclick="quitarCodigoPremium(this.dataset.rif)">Quitar</button></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>`;
+      } catch (e) {
+        const m = String((e && e.message) || e);
+        div.innerHTML = `<div style="font-size: 0.78rem; color: #b45309;">${m.includes("codigo_premium") ? "Para usar códigos de Premium falta crear la columna en Supabase. Ejecute en el SQL Editor: " + escapeHtml(SQL_CODIGO_PREMIUM) : "No se pudo leer la lista: " + escapeHtml(m)}</div>`;
+      }
+    }
+
+    async function quitarCodigoPremium(rif) {
+      if (!confirm("¿Quitar el código de Premium vinculado a este cliente? Sus facturas ya cargadas no se afectan.")) return;
+      const { error } = await _supabase.from("clientes").update({ codigo_premium: null }).eq("rif_cedula", rif);
+      const msg = document.getElementById("premium-vincular-msg");
+      if (error) { msg.style.color = "#dc2626"; msg.textContent = "No se pudo quitar el código: " + error.message; return; }
+      msg.style.color = "#16a34a";
+      msg.textContent = "Código quitado.";
+      invalidarCacheClientes();
+      cargarCodigosPremiumVinculados();
+    }
+
     async function procesarExcelPremiumSoft() {
       const inputTasa = document.getElementById("tasa-cambio-excel");
       const inputArchivo = document.getElementById("archivo-excel-premium");
@@ -3134,11 +3325,22 @@
             return;
           }
 
-          const { data: listaClientes, error: errClientes } = await _supabase.from("clientes").select("rif_cedula, nombre, deuda_actual");
-          if (errClientes) throw errClientes;
+          let listaClientes;
+          let conPremium = true;   // false si todavía no existe la columna codigo_premium
+          try {
+            listaClientes = await leerTodosLosClientes("rif_cedula, nombre, deuda_actual, codigo_premium");
+          } catch (e) {
+            if (String((e && e.message) || e).includes("codigo_premium")) {
+              conPremium = false;
+              listaClientes = await leerTodosLosClientes("rif_cedula, nombre, deuda_actual");
+            } else {
+              throw e;
+            }
+          }
 
           const mapaClientes = {};      // coincidencia exacta: letra + número (V5000)
           const mapaPorNumero = {};     // solo el número (5000) -> clientes que lo tienen
+          const mapaPremium = {};       // código de Premium vinculado (ej. MANHATTANMJ) -> clientes
           listaClientes.forEach(c => {
             const datos = {
               rif_original: c.rif_cedula,
@@ -3146,6 +3348,8 @@
               deuda_actual: parseFloat(c.deuda_actual || 0)
             };
             mapaClientes[normalizarRifCedula(c.rif_cedula)] = datos;
+            const claveP = normalizarRifCedula(c.codigo_premium);
+            if (claveP) (mapaPremium[claveP] = mapaPremium[claveP] || []).push(datos);
             const clave = claveNumericaRif(c.rif_cedula);
             if (clave) (mapaPorNumero[clave] = mapaPorNumero[clave] || []).push(datos);
           });
@@ -3161,6 +3365,8 @@
           let fechasCompletadas = 0;    // facturas ya cargadas a las que se les agregó la fecha de emisión
           let facturasSinFecha = 0;     // facturas nuevas cuyo Excel no traía una fecha de emisión válida
           let erroresFactura = 0;       // facturas que no se pudieron guardar (no se suman a la deuda)
+          let asociadasPorPremium = 0;  // facturas asignadas por el código de Premium vinculado
+          const noEncontradosDetalle = {};  // códigos del Excel sin cliente: para poder vincularlos
 
           for (const row of rows) {
             const codCliente = row["CODCLIENTE"];
@@ -3171,6 +3377,18 @@
 
             const rifNormalizado = normalizarRifCedula(codCliente);
             let clienteMatch = mapaClientes[rifNormalizado];
+
+            // Si no coincide con un RIF / cédula, se busca entre los códigos de Premium vinculados
+            if (!clienteMatch) {
+              const porPremium = mapaPremium[rifNormalizado] || [];
+              if (porPremium.length === 1) {
+                clienteMatch = porPremium[0];
+                asociadasPorPremium++;
+              } else if (porPremium.length > 1) {
+                clientesAmbiguos++;
+                continue;
+              }
+            }
 
             // Si no hay coincidencia exacta, se busca por el número sin la letra
             if (!clienteMatch) {
@@ -3196,6 +3414,16 @@
 
             if (!clienteMatch) {
               clientesNoEncontrados++;
+              if (!noEncontradosDetalle[rifNormalizado]) {
+                noEncontradosDetalle[rifNormalizado] = {
+                  codigo: String(codCliente).trim(),
+                  nombre: String(valorColumnaExcel(row, ["NOMBRE", "CLIENTE", "NOMBRECLIENTE", "RAZONSOCIAL"]) || "").trim(),
+                  facturas: 0,
+                  montoBs: 0
+                };
+              }
+              noEncontradosDetalle[rifNormalizado].facturas++;
+              noEncontradosDetalle[rifNormalizado].montoBs += totalNetoBs;
               continue;
             }
 
@@ -3256,6 +3484,8 @@
 
           statusDiv.className = "mt-2 text-xs font-bold text-green-600";
           statusDiv.innerText = `✅ Importación exitosa. Agregadas: ${facturasProcesadas} | Omitidas (Duplicadas): ${facturasOmitidasDuplicadas} | No mapeados: ${clientesNoEncontrados}` + (fechasCompletadas ? ` | Fechas completadas: ${fechasCompletadas}` : "") + (erroresFactura ? ` | Con error: ${erroresFactura}` : "");
+          invalidarCacheClientes();
+          mostrarCodigosNoEncontrados(Object.values(noEncontradosDetalle));
           const filasAsociadas = Object.values(detallePorNumero);
           if (detalleDiv && filasAsociadas.length > 0) {
             const tdEstilo = 'style="padding: 6px 10px; border-bottom: 1px solid var(--border-color);"';
@@ -3286,7 +3516,7 @@
             `;
           }
 
-          alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas:${facturasOmitidasDuplicadas}\nClientes no encontrados: ${clientesNoEncontrados}${asociadasPorNumero ? `\nAsociadas por número (letra del RIF distinta): ${asociadasPorNumero}` : ""}${clientesAmbiguos ? `\nSin cargar, número repetido en varios clientes: ${clientesAmbiguos}` : ""}${fechasCompletadas ? `\nFechas de emisión completadas en facturas ya cargadas: ${fechasCompletadas}` : ""}${facturasSinFecha ? `\nFacturas nuevas sin fecha de emisión válida en el Excel: ${facturasSinFecha}` : ""}${erroresFactura ? `\nFacturas con error al guardar (no se sumaron a la deuda): ${erroresFactura}` : ""}\nLote asignado:${loteImportacion}`);
+          alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas:${facturasOmitidasDuplicadas}\nClientes no encontrados: ${clientesNoEncontrados}${clientesNoEncontrados ? " (la lista aparece debajo del botón de importar)" : ""}${asociadasPorPremium ? `\nAsociadas por código de Premium vinculado: ${asociadasPorPremium}` : ""}${!conPremium ? "\nAviso: falta la columna codigo_premium en clientes; no se usaron códigos de Premium vinculados." : ""}${asociadasPorNumero ? `\nAsociadas por número (letra del RIF distinta): ${asociadasPorNumero}` : ""}${clientesAmbiguos ? `\nSin cargar, número repetido en varios clientes: ${clientesAmbiguos}` : ""}${fechasCompletadas ? `\nFechas de emisión completadas en facturas ya cargadas: ${fechasCompletadas}` : ""}${facturasSinFecha ? `\nFacturas nuevas sin fecha de emisión válida en el Excel: ${facturasSinFecha}` : ""}${erroresFactura ? `\nFacturas con error al guardar (no se sumaron a la deuda): ${erroresFactura}` : ""}\nLote asignado:${loteImportacion}`);
 
         } catch (err) {
           console.error("Error procesando Excel:", err);
@@ -3578,21 +3808,135 @@
       return (t || "").toString().replace(/[,()%*\\]/g, " ").replace(/\s+/g, " ").trim();
     }
 
+    /* =========================================================
+       BÚSQUEDA UNIFICADA DE CLIENTES Y PRODUCTOS
+       - No distingue mayúsculas, acentos ni signos (guiones, puntos, espacios).
+       - Las palabras pueden ir en cualquier orden ("Manhattan MJ" encuentra "MJ Manhattan").
+       - Los códigos se encuentran escritos como sea: J404049134, J-404049134 o 404049134.
+       - También busca por el código de Premium vinculado al cliente.
+       - Los clientes se leen una vez y se filtran en el navegador (se refrescan cada 60 s
+         y cuando cambian los datos).
+    ========================================================= */
+    function normalizarBusqueda(t) {
+      return (t == null ? "" : String(t))
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    }
+
+    function indexarCliente(c) {
+      const nombre = normalizarBusqueda(c.nombre);
+      const rif = normalizarBusqueda(c.rif_cedula);
+      const prem = normalizarBusqueda(c.codigo_premium);
+      const codigo = rif.replace(/ /g, "");
+      const premium = prem.replace(/ /g, "");
+      return {
+        nombre: nombre,
+        codigo: codigo,
+        premium: premium,
+        digitos: (codigo + " " + premium).replace(/[^0-9 ]/g, ""),
+        texto: `${nombre} ${rif} ${prem} ${codigo} ${premium}`
+      };
+    }
+
+    // Devuelve los clientes que coinciden con el texto, los mejores primero
+    function filtrarClientes(lista, texto, limite) {
+      const qn = normalizarBusqueda(texto);
+      if (!qn) return [];
+      const qc = qn.replace(/ /g, "");
+      const esCodigo = /^[a-z]?\d{3,}$/.test(qc);   // letra opcional + dígitos
+      const digitosQ = qc.replace(/\D/g, "");
+      const tokens = qn.split(" ");
+      const res = [];
+      for (const c of lista) {
+        const b = c._b || (c._b = indexarCliente(c));
+        let puntaje = 0;
+        if (esCodigo) {
+          if (b.codigo === qc || b.premium === qc) puntaje = 100;
+          else if (b.codigo.includes(qc) || b.premium.includes(qc)) puntaje = 60;
+          else if (digitosQ && b.digitos.includes(digitosQ)) puntaje = 40;   // misma numeración con otra letra
+        }
+        if (!puntaje && tokens.every(t => b.texto.includes(t))) {
+          puntaje = b.nombre === qn ? 80 : (b.nombre.startsWith(qn) ? 50 : 30);
+        }
+        if (puntaje) res.push({ c: c, puntaje: puntaje });
+      }
+      res.sort((x, y) => (y.puntaje - x.puntaje) || x.c.nombre.localeCompare(y.c.nombre));
+      return res.slice(0, limite || 8).map(r => r.c);
+    }
+
+    // Si exactamente un cliente coincide por completo (código o nombre), lo devuelve
+    function clienteExactoEn(data, texto) {
+      const qn = normalizarBusqueda(texto);
+      const qc = qn.replace(/ /g, "");
+      const exactos = data.filter(c => {
+        const b = c._b || (c._b = indexarCliente(c));
+        return b.codigo === qc || (b.premium && b.premium === qc) || b.nombre === qn;
+      });
+      return exactos.length === 1 ? exactos[0] : undefined;
+    }
+
+    let _clientesBusquedaCache = null;
+    let _clientesBusquedaCargadoEn = 0;
+    let _clientesBusquedaPromesa = null;
+    const CLIENTES_BUSQUEDA_TTL_MS = 60000;
+
+    function invalidarCacheClientes() { _clientesBusquedaCache = null; }
+
+    // Vendedor = usuario sin acceso completo a Pagos: solo ve sus propios clientes.
+    // Administradores y asistentes (con Pagos completo) ven todos los clientes.
+    function esVendedorRestringido() {
+      return !tienePermiso(currentUser, "modulo_pagos");
+    }
+
+    function mismoUsuario(a, b) {
+      return String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+    }
+
+    // Clientes que el usuario actual puede ver y usar en búsquedas, órdenes, pagos y estados de cuenta
+    async function obtenerClientesVisibles() {
+      const todos = await obtenerClientesParaBusqueda();
+      if (!currentUser || !esVendedorRestringido()) return todos;
+      return todos.filter(c => mismoUsuario(c.vendedor_email, currentUser.usuario));
+    }
+
+    async function obtenerClientesParaBusqueda(forzar) {
+      if (!forzar && _clientesBusquedaCache && (Date.now() - _clientesBusquedaCargadoEn) < CLIENTES_BUSQUEDA_TTL_MS) {
+        return _clientesBusquedaCache;
+      }
+      if (_clientesBusquedaPromesa) return _clientesBusquedaPromesa;
+      _clientesBusquedaPromesa = (async () => {
+        let lista;
+        try {
+          lista = await leerTodosLosClientes("rif_cedula, nombre, sector, vendedor_email, deuda_actual, codigo_premium");
+        } catch (e) {
+          if (String((e && e.message) || e).includes("codigo_premium")) {
+            lista = await leerTodosLosClientes("rif_cedula, nombre, sector, vendedor_email, deuda_actual");
+          } else {
+            throw e;
+          }
+        }
+        _clientesBusquedaCache = lista;
+        _clientesBusquedaCargadoEn = Date.now();
+        return lista;
+      })().finally(() => { _clientesBusquedaPromesa = null; });
+      return _clientesBusquedaPromesa;
+    }
+
     async function resolverClienteTexto(texto) {
       const q = limpiarTextoBusqueda(texto);
       if (!q) return { cliente: null, motivo: "vacio" };
 
-      const { data, error } = await _supabase
-        .from("clientes")
-        .select("rif_cedula, nombre, deuda_actual")
-        .or(`rif_cedula.ilike.%${q}\%,nombre.ilike.\%${q}%`)
-        .order("nombre")
-        .limit(10);
+      let data;
+      try {
+        data = filtrarClientes(await obtenerClientesVisibles(), q, 10);
+      } catch (e) {
+        return { cliente: null, error: (e && e.message) || String(e) };
+      }
+      if (!data.length) return { cliente: null, motivo: "no_encontrado" };
 
-      if (error) return { cliente: null, error: error.message };
-      if (!data || data.length === 0) return { cliente: null, motivo: "no_encontrado" };
-
-      const exacto = data.find(c => normalizarRifCedula(c.rif_cedula) === normalizarRifCedula(q));
+      const exacto = clienteExactoEn(data, q);
       if (exacto) return { cliente: exacto };
       if (data.length === 1) return { cliente: data[0] };
       return { cliente: null, motivo: "varios", cantidad: data.length };
@@ -3601,7 +3945,9 @@
     function mensajeClienteNoResuelto(r, texto) {
       if (r.error) return `Error al buscar el cliente: ${r.error}`;
       if (r.motivo === "varios") return `Varios clientes coinciden con "${texto}". Escriba más datos o elíjalo de la lista.`;
-      return "Cliente no encontrado en la base de datos.";
+      return esVendedorRestringido()
+        ? "No se encontró un cliente suyo con ese dato."
+        : "Cliente no encontrado en la base de datos.";
     }
 
     // Lista de sugerencias (RIF, cédula o nombre). Se mantiene abierta mientras se usa la barra
@@ -3643,14 +3989,14 @@
         if (q.length < 2) { ocultar(); return; }
 
         _buscadorTimers[inputId] = setTimeout(async () => {
-          const { data, error } = await _supabase
-            .from("clientes")
-            .select("rif_cedula, nombre, deuda_actual")
-            .or(`rif_cedula.ilike.%${q}\%,nombre.ilike.\%${q}%`)
-            .order("nombre")
-            .limit(8);
+          let data = [], error = null;
+          try {
+            data = filtrarClientes(await obtenerClientesVisibles(), q, 8);
+          } catch (e) {
+            error = e;
+          }
 
-          if (error || !data || data.length === 0) {
+          if (error || data.length === 0) {
             ocultar();
             if (alSinResultados && !error) alSinResultados(q);
             return;
@@ -3661,7 +4007,7 @@
           lista.innerHTML = data.map((c, i) => `
             <div class="client-suggestion-item" data-i="${i}">
               <strong>${escapeHtml(c.nombre)}</strong><br>
-              <span style="font-size:0.75rem; color:var(--text-muted);">RIF/Cédula: ${escapeHtml(c.rif_cedula)}${verDeuda ? ` | Deuda: $${parseFloat(c.deuda_actual || 0).toFixed(2)}` : ""}</span>
+              <span style="font-size:0.75rem; color:var(--text-muted);">RIF/Cédula: ${escapeHtml(c.rif_cedula)}${c.codigo_premium ? " | Premium: " + escapeHtml(c.codigo_premium) : ""}${verDeuda ? ` | Deuda: $${parseFloat(c.deuda_actual || 0).toFixed(2)}` : ""}</span>
             </div>
           `).join("");
 
@@ -3698,6 +4044,7 @@
       activarBuscadorCliente("buscar-rif-kardex", () => cargarKardexCliente());
       activarBuscadorCliente("pago-rif", () => buscarClientePago());
       activarBuscadorCliente("ajuste-rif", () => buscarClienteAjuste());
+      activarBuscadorCliente("premium-cliente", () => {});
       activarBuscadorCliente("clienteBuscarInput", (c) => seleccionarClienteOrden(c.rif_cedula), alSinResultadosClienteOrden);
       const buscadorOrden = document.getElementById("clienteBuscarInput");
       if (buscadorOrden) {
@@ -3990,6 +4337,7 @@
 
         const { error: errDeuda } = await _supabase
           .from("clientes").update({ deuda_actual: nuevoSaldo }).eq("rif_cedula", pago.rif_cedula);
+        invalidarCacheClientes();
         if (errDeuda) {
           alert("ATENCIÓN: el movimiento quedó en el historial pero no se pudo actualizar la deuda del cliente: " + errDeuda.message);
           cargarPagosPendientes();
@@ -4282,6 +4630,7 @@
 
         const { error: errDeuda } = await _supabase
           .from("clientes").update({ deuda_actual: nuevoSaldo }).eq("rif_cedula", a.rif_cedula);
+        invalidarCacheClientes();
         if (errDeuda) {
           alert("ATENCIÓN: el movimiento quedó en el historial pero no se pudo actualizar la deuda del cliente: " + errDeuda.message);
           cargarAjustes();
@@ -4974,7 +5323,7 @@
     let ecTimer = null;
 
     function ecEsRestringido() {
-      return !tienePermiso(currentUser, "modulo_pagos");
+      return esVendedorRestringido();
     }
 
     function ocultarEstadoCuenta() {
@@ -5030,18 +5379,15 @@
       }
 
       const ejecutar = async () => {
-        let consulta = _supabase
-          .from("clientes")
-          .select("rif_cedula, nombre, sector")
-          .or(`rif_cedula.ilike.%${q}%,nombre.ilike.%${q}%`)
-          .order("nombre")
-          .limit(8);
-        if (ecEsRestringido()) consulta = consulta.eq("vendedor_email", currentUser.usuario);
-
-        const { data, error } = await consulta;
         const estado = document.getElementById("ec-estado");
+        let data = [], error = null;
+        try {
+          data = filtrarClientes(await obtenerClientesVisibles(), q, 8);
+        } catch (e) {
+          error = e;
+        }
 
-        if (error) { lista.style.display = "none"; estado.textContent = "Error al buscar: " + error.message; return; }
+        if (error) { lista.style.display = "none"; estado.textContent = "Error al buscar: " + ((error && error.message) || error); return; }
         if (!data || data.length === 0) {
           lista.style.display = "none";
           ecSugerencias = [];
@@ -5050,7 +5396,7 @@
         }
 
         ecSugerencias = data;
-        const exacto = data.find(c => normalizarRifCedula(c.rif_cedula) === normalizarRifCedula(q));
+        const exacto = clienteExactoEn(data, q);
         if (inmediato && (data.length === 1 || exacto)) {
           const c = exacto || data[0];
           lista.style.display = "none";
@@ -5590,24 +5936,24 @@
       }
     }
 
+    const _busqProductos = new WeakMap();
+
     function filterProducts() {
-      const search = document.getElementById("searchInput").value.toLowerCase().trim();
+      const search = normalizarBusqueda(document.getElementById("searchInput").value);
       const main = document.getElementById("mainCategorySelect").value;
       const sub = document.getElementById("subCategorySelect").value;
 
       let filtered = allProducts.filter(p => {
-        const nombre = String(p.nombre || "").toLowerCase();
-        const codigo = String(p.codigo || "").toLowerCase();
-        const referencia = String(p.referencia || "").toLowerCase();
-        const subcategoria = String(p.subCategory || "").toLowerCase();
-        const maincategory = String(p.mainCategory || "").toLowerCase();
-
         if (search) {
-          const matchSearch = nombre.includes(search) || codigo.includes(search) || referencia.includes(search) || subcategoria.includes(search) || maincategory.includes(search);
-          return matchSearch;
+          let hay = _busqProductos.get(p);
+          if (hay === undefined) {
+            hay = normalizarBusqueda([p.nombre, p.codigo, p.referencia, p.subCategory, p.mainCategory].join(" "));
+            _busqProductos.set(p, hay);
+          }
+          return search.split(" ").every(t => hay.includes(t));
         }
 
-        const mainOk = !main || p.mainCategory === main;
+                const mainOk = !main || p.mainCategory === main;
         const subOk = !sub || p.subCategory === sub;
 
         return mainOk && subOk;
@@ -5909,7 +6255,10 @@
       }
 
       const cliente = document.getElementById("clientNameInput").value.trim();
-      const rifCedula = construirRifCedulaCompleto();
+      // Cliente registrado: se usa su código exactamente como está guardado (no se reconstruye)
+      const rifCedula = (clienteOrden.modo === "existente" && clienteOrden.original && clienteOrden.original.rif_cedula)
+        ? clienteOrden.original.rif_cedula
+        : construirRifCedulaCompleto();
       const numDocOnly = document.getElementById("numDocInput").value.trim();
       const telefono = document.getElementById("telefonoInput").value.trim();
       const vendedor = document.getElementById("sellerNameInput").value.trim();
@@ -5942,7 +6291,7 @@
         vendedor_email: currentUser ? currentUser.usuario : ''
       });
       if (resultadoCliente && resultadoCliente.duplicado) {
-        alert("Ese RIF / Cédula acaba de ser registrado por otro usuario. Búsquelo en el buscador y genere la orden de nuevo.");
+        alert("Ese RIF / Cédula ya está registrado, por lo que no se puede crear como cliente nuevo. Verifique el código; si es un cliente suyo, búsquelo en el buscador.");
         return;
       }
 
