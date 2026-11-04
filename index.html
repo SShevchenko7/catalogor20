@@ -1254,6 +1254,12 @@
               <label><i class="fa-solid fa-comment-dots"></i> Observaciones (opcional)</label>
               <textarea id="pago-observaciones" rows="2" maxlength="300" placeholder="Escriba cualquier nota sobre este pago (la verá quien lo apruebe)..." style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px; font-family: inherit; font-size: 0.9rem; resize: vertical;"></textarea>
             </div>
+            <div class="admin-input-group" style="grid-column: 1 / -1;">
+              <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:700; color:#0f766e; background:#ccfbf1; border:1px solid #5eead4; border-radius:8px; padding:0.6rem 0.8rem;">
+                <input type="checkbox" id="pago-descuento-pp" style="width:auto; margin:0;">
+                <span><i class="fa-solid fa-percent"></i> Este monto ya viene con el descuento del 2% por pronto pago</span>
+              </label>
+            </div>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
               <button onclick="registrarPago()" id="pago-btn-registrar" class="admin-btn-primary">
                 <i class="fa-solid fa-paper-plane"></i> Registrar Pago
@@ -3726,7 +3732,9 @@
               ${puedeAprobar ? `<input type="text" inputmode="decimal" class="input-monto" autocomplete="off" id="tasa-input-${p.id}" value="${tasaDefault > 0 ? fmtVE(tasaDefault) : ''}" placeholder="Ej. 876,80" style="width: 105px; padding: 4px; text-align: center; border: 1px solid var(--border-color); border-radius: 4px;" oninput="actualizarEquivalenteDolar('${p.id}', ${montoBs})" />` : (p.tasa || '-')}
             </td>
             <td style="text-align: right; font-weight: bold; color: #2563eb;" id="eq-dolar-${p.id}">$${calcDolares}</td>
-            <td>${escapeHtml(p.numero_referencia)} (${escapeHtml(p.banco || "N/A")})${p.observaciones ? `<div style="margin-top: 6px; padding: 6px 8px; background: #fef9c3; border-left: 3px solid #eab308; border-radius: 4px; font-size: 0.78rem; font-weight: 400; color: #713f12; white-space: pre-wrap; max-width: 260px;"><strong>Observación:</strong> ${escapeHtml(p.observaciones)}</div>` : ""}</td>
+            <td>${escapeHtml(p.numero_referencia)} (${escapeHtml(p.banco || "N/A")})${p.observaciones ? `<div style="margin-top: 6px; padding: 6px 8px; background: #fef9c3; border-left: 3px solid #eab308; border-radius: 4px; font-size: 0.78rem; font-weight: 400; color: #713f12; white-space: pre-wrap; max-width: 260px;"><strong>Observación:</strong> ${escapeHtml(p.observaciones)}</div>` : ""}
+              ${p.descuento_pronto_pago ? `<div style="margin-top:6px;"><span class="admin-badge" style="background:#ccfbf1; color:#0f766e;">Vendedor indica: con descuento ${DESCUENTO_PRONTO_PAGO_PCT}%</span></div>` : ""}
+              ${puedeAprobar ? `<label style="display:flex; align-items:center; gap:6px; margin-top:6px; font-size:0.78rem; font-weight:700; color:#0f766e; cursor:pointer;"><input type="checkbox" id="dpp-chk-${p.id}" style="width:auto; margin:0;" ${p.descuento_pronto_pago ? "checked" : ""} onchange="actualizarVistaDescuentoPP('${p.id}', ${montoBs})"> Aplicar descuento ${DESCUENTO_PRONTO_PAGO_PCT}% pronto pago</label><div id="dpp-monto-${p.id}" style="font-size:0.75rem; font-weight:600; color:#0f766e;"></div>` : ""}</td>
             <td style="text-align: center;">
               ${p.comprobante_url ? `<a href="${escapeHtml(p.comprobante_url)}" target="_blank" style="color:var(--accent-color); font-weight:bold; font-size:0.8rem;"><i class="fa-solid fa-file-arrow-down"></i> Ver</a>` : '-'}
             </td>
@@ -3775,6 +3783,7 @@
         const filas = lista.map(p => filaPago(p, gid)).join("");
         return cabecera + (abierto ? filas.replace(/style="display: none;"/g, "") : filas);
       }).join("");
+      pagos.forEach(p => actualizarVistaDescuentoPP(p.id, parseFloat(p.monto_bs || 0)));
     }
 
     // Grupos (vendedores) que están desplegados en "Pagos Pendientes por Aprobar"
@@ -3789,6 +3798,13 @@
       if (abrir) gruposPagosAbiertos.add(clave); else gruposPagosAbiertos.delete(clave);
     }
 
+    // Descuento por pronto pago: el cliente paga el (100 - X)% de la deuda.
+    const DESCUENTO_PRONTO_PAGO_PCT = 2;
+    function calcularDescuentoPP(montoPagadoUsd) {
+      const pct = DESCUENTO_PRONTO_PAGO_PCT / 100;
+      return parseFloat((montoPagadoUsd * pct / (1 - pct)).toFixed(2));
+    }
+
     function actualizarEquivalenteDolar(pagoId, montoBs) {
       const inputTasa = document.getElementById(`tasa-input-${pagoId}`);
       const eqDolar = document.getElementById(`eq-dolar-${pagoId}`);
@@ -3801,6 +3817,24 @@
         ultimaTasaUsada = tasa;
       } else {
         eqDolar.textContent = "$0.00";
+      }
+      actualizarVistaDescuentoPP(pagoId, montoBs);
+    }
+
+    // Muestra en la fila el monto del descuento que se aplicará al aprobar
+    function actualizarVistaDescuentoPP(pagoId, montoBs) {
+      const chk = document.getElementById(`dpp-chk-${pagoId}`);
+      const out = document.getElementById(`dpp-monto-${pagoId}`);
+      const inputTasa = document.getElementById(`tasa-input-${pagoId}`);
+      if (!chk || !out) return;
+      const tasa = inputTasa ? parseNumeroVE(inputTasa.value) : 0;
+      if (chk.checked && tasa > 0) {
+        const usd = parseFloat((montoBs / tasa).toFixed(2));
+        out.textContent = `Se restará además $${fmtVE(calcularDescuentoPP(usd))}`;
+      } else if (chk.checked) {
+        out.textContent = "Ingrese la tasa para calcular";
+      } else {
+        out.textContent = "";
       }
     }
 
@@ -4118,6 +4152,8 @@
       });
       const fecha = document.getElementById("pago-fecha");
       if (fecha) fecha.value = new Date().toLocaleDateString("en-CA");
+      const chkPP = document.getElementById("pago-descuento-pp");
+      if (chkPP) chkPP.checked = false;
       const info = document.getElementById("pago-cliente-info");
       if (info) info.textContent = "";
       status.textContent = "";
@@ -4226,6 +4262,8 @@
         estado: "pendiente"
       };
       if (observaciones) registro.observaciones = observaciones;
+      const chkDescPP = document.getElementById("pago-descuento-pp");
+      if (chkDescPP && chkDescPP.checked) registro.descuento_pronto_pago = true;
 
       const { error } = await _supabase.from("pagos_registrados").insert([registro]);
 
@@ -4235,7 +4273,9 @@
         console.error("Error al registrar pago:", error);
         const pistaObs = (error.message || "").toLowerCase().includes("observaciones")
           ? " Falta ejecutar el script SQL que agrega la columna observaciones en pagos_registrados."
-          : "";
+          : ((error.message || "").toLowerCase().includes("descuento_pronto_pago")
+            ? " Falta ejecutar el script SQL que agrega la columna descuento_pronto_pago en pagos_registrados."
+            : "");
         setStatus("No se pudo registrar el pago: " + error.message + pistaObs, "#dc2626");
         return;
       }
@@ -4247,6 +4287,7 @@
       document.getElementById("pago-referencia").value = "";
       document.getElementById("pago-banco").value = "";
       if (campoObs) campoObs.value = "";
+      if (chkDescPP) chkDescPP.checked = false;
       if (inputComprobante) inputComprobante.value = "";
       if (!limitado) cargarPagosPendientes();
     }
@@ -4270,7 +4311,16 @@
         }
       }
 
-      if (!confirm(`¿Está seguro de marcar este pago como ${nuevoEstado.toUpperCase()}?`)) return;
+      const chkDPP = document.getElementById(`dpp-chk-${pagoId}`);
+      const aplicarDPP = nuevoEstado === "aprobado" && !!(chkDPP && chkDPP.checked);
+
+      let textoConfirm = `¿Está seguro de marcar este pago como ${nuevoEstado.toUpperCase()}?`;
+      if (aplicarDPP) {
+        const { data: pPrev } = await _supabase.from("pagos_registrados").select("monto_bs").eq("id", pagoId).single();
+        const usdPrev = pPrev ? parseFloat((parseFloat(pPrev.monto_bs || 0) / tasaFinal).toFixed(2)) : 0;
+        textoConfirm += `\n\nSe aplicará también el descuento por pronto pago (${DESCUENTO_PRONTO_PAGO_PCT}%): $${fmtVE(calcularDescuentoPP(usdPrev))}.`;
+      }
+      if (!confirm(textoConfirm)) return;
 
       const datosUpdate = { estado: nuevoEstado };
       if (nuevoEstado === "aprobado") {
@@ -4319,6 +4369,31 @@
         const deudaPrev = parseFloat(cliente.deuda_actual || 0);
         const nuevoSaldo = parseFloat((deudaPrev - montoDolares).toFixed(2));
 
+        // Descuento por pronto pago (opcional): queda como ajuste YA aprobado, en el mismo paso
+        const descuentoPP = aplicarDPP ? calcularDescuentoPP(montoDolares) : 0;
+        let ajusteDPPId = null;
+        if (descuentoPP > 0) {
+          const { data: ajNuevo, error: errAj } = await _supabase.from("ajustes_cuenta").insert([{
+            rif_cedula: pago.rif_cedula,
+            nombre_cliente: pago.nombre_cliente,
+            tipo: "DESCUENTO",
+            motivo: "Pronto Pago",
+            numero_factura: null,
+            descripcion: `Descuento ${DESCUENTO_PRONTO_PAGO_PCT}% aplicado al aprobar el pago ref. ${pago.numero_referencia}`,
+            monto: descuentoPP,
+            estado: "aprobado",
+            solicitado_por: pago.vendedor_usuario || currentUser.usuario,
+            aprobado_por: currentUser.usuario,
+            fecha_resolucion: new Date().toISOString()
+          }]).select();
+          if (errAj || !ajNuevo || !ajNuevo[0]) {
+            await revertir("No se pudo registrar el descuento por pronto pago" + (errAj ? ": " + errAj.message : "") + ".");
+            return;
+          }
+          ajusteDPPId = ajNuevo[0].id;
+        }
+        const saldoFinal = parseFloat((nuevoSaldo - descuentoPP).toFixed(2));
+
         // Registro exacto en el Kardex con Monto en Bs y Tasa (idéntico al formato de facturas)
         const { error: errHist } = await _supabase.from("historial_cuentas").insert([{
           rif_cedula: pago.rif_cedula,
@@ -4331,12 +4406,29 @@
           creado_por: currentUser.usuario
         }]);
         if (errHist) {
+          if (ajusteDPPId) await _supabase.from("ajustes_cuenta").delete().eq("id", ajusteDPPId);
           await revertir("No se pudo guardar el movimiento en el historial: " + errHist.message);
           return;
         }
 
+        if (descuentoPP > 0) {
+          const { error: errHistDesc } = await _supabase.from("historial_cuentas").insert([{
+            rif_cedula: pago.rif_cedula,
+            tipo_movimiento: "DESCUENTO",
+            monto: descuentoPP,
+            signo: "-",
+            saldo_resultante: saldoFinal,
+            referencia_doc: pago.numero_referencia,
+            observacion: `Pronto Pago ${DESCUENTO_PRONTO_PAGO_PCT}% (aprobado por ${currentUser.usuario})`,
+            creado_por: currentUser.usuario
+          }]);
+          if (errHistDesc) {
+            alert("ATENCIÓN: el pago quedó aprobado pero no se pudo guardar el descuento en el historial: " + errHistDesc.message + "\nRevise el Kardex del cliente.");
+          }
+        }
+
         const { error: errDeuda } = await _supabase
-          .from("clientes").update({ deuda_actual: nuevoSaldo }).eq("rif_cedula", pago.rif_cedula);
+          .from("clientes").update({ deuda_actual: saldoFinal }).eq("rif_cedula", pago.rif_cedula);
         invalidarCacheClientes();
         if (errDeuda) {
           alert("ATENCIÓN: el movimiento quedó en el historial pero no se pudo actualizar la deuda del cliente: " + errDeuda.message);
@@ -4345,8 +4437,9 @@
         }
       }
 
-      alert(`Pago ${nuevoEstado} exitosamente.`);
+      alert(`Pago ${nuevoEstado} exitosamente.` + (aplicarDPP ? " Descuento por pronto pago aplicado." : ""));
       cargarPagosPendientes();
+      if (aplicarDPP && typeof cargarAjustes === "function") cargarAjustes();
     }
 
     /* =========================================================
