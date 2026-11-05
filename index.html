@@ -399,6 +399,38 @@
       font-weight: 700;
     }
 
+    /* ---- Módulo Pagos por Vendedor ---- */
+    .pv-toolbar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;padding:.7rem .8rem;background:#f1f5f9;border:1px solid var(--border-color);border-radius:10px}
+    .pv-lab{display:block;font-size:.72rem;font-weight:700;color:var(--text-muted);margin-bottom:2px}
+    .pv-toolbar input,.pv-toolbar select{padding:.45rem .55rem;border:1px solid #cbd5e1;border-radius:8px;font-size:.88rem;background:#fff}
+    .pv-toolbar button{padding:.5rem .9rem;border:none;border-radius:8px;font-weight:700;font-size:.82rem;cursor:pointer;background:#e2e8f0;color:#334155}
+    .pv-toolbar button.principal{background:#1e293b;color:#fff}
+    .pv-toolbar button.excel{background:#16a34a;color:#fff}
+    .pv-rapidos{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-top:.5rem;font-size:.75rem;color:var(--text-muted);font-weight:700}
+    .pv-rapidos button{padding:.25rem .65rem;border:1px solid #cbd5e1;border-radius:999px;background:#fff;font-size:.75rem;font-weight:700;color:#334155;cursor:pointer}
+    .pv-rapidos button:hover{background:#e2e8f0}
+    .pv-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.6rem;margin:.6rem 0 1rem}
+    .pv-kpi{border:1px solid #cbd5e1;border-radius:10px;padding:.6rem .8rem;background:#fff}
+    .pv-kpi small{display:block;font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase}
+    .pv-kpi b{font-size:1.2rem;color:#0f172a}
+    .pv-kpi.verde b{color:#15803d}.pv-kpi.azul b{color:#2563eb}
+    .pv-kpi span{display:block;font-size:.72rem;color:#64748b;font-weight:600}
+    .pv-tabla{width:100%;border-collapse:collapse;font-size:.84rem}
+    .pv-tabla th{text-align:left;background:#f8fafc;padding:7px 9px;border-bottom:1px solid #cbd5e1;font-size:.7rem;text-transform:uppercase;color:#64748b;white-space:nowrap}
+    .pv-tabla td{padding:6px 9px;border-bottom:1px solid #e2e8f0}
+    .pv-tabla .num{text-align:right;white-space:nowrap;font-weight:700}
+    .pv-tabla tr.pv-fila{cursor:pointer}
+    .pv-tabla tr.pv-fila:hover td{background:#f1f5f9}
+    .pv-tabla tr.pv-total td{background:#f1f5f9;font-weight:800;border-top:2px solid #94a3b8}
+    .pv-tabla tr.pv-det td{background:#f8fafc;font-size:.78rem}
+    .pv-tabla tr.pv-det-cab td{background:#eef2f7;font-weight:800;font-size:.68rem;text-transform:uppercase;color:#475569}
+    .pv-barra{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden;min-width:90px}
+    .pv-barra i{display:block;height:100%;background:#2563eb;border-radius:999px}
+    .pv-sub{font-size:.8rem;font-weight:800;color:#334155;margin:1.1rem 0 .4rem}
+    .pv-tend{display:flex;align-items:flex-end;gap:3px;height:140px;padding:6px 4px 0;border:1px solid #cbd5e1;border-radius:10px;background:#fff;overflow-x:auto}
+    .pv-tend div{flex:1 0 14px;min-width:14px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+    .pv-tend i{display:block;width:100%;background:#16a34a;border-radius:3px 3px 0 0;min-height:2px}
+    .pv-tend em{font-style:normal;font-size:.55rem;color:#64748b;margin-top:2px;white-space:nowrap}
     .filtro-hist { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: flex-end; margin: 0.5rem 0 0.9rem; padding: 0.7rem 0.8rem; background: #f1f5f9; border: 1px solid var(--border-color); border-radius: 10px; }
     .filtro-hist label { display: block; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; }
     .filtro-hist input, .filtro-hist select { padding: 0.4rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem; background: white; }
@@ -1097,6 +1129,11 @@
         <h3 style="font-size: 1.1rem; color: var(--primary-color);">Reporte de Deuda</h3>
         <span style="font-size: 0.8rem; color: var(--text-muted);">Deuda por vendedor y por zona, imprimir y Excel</span>
       </div>
+      <div class="admin-menu-card" id="menuCardPagosVendedor" onclick="abrirModuloAdmin('pagos_vendedor')" style="background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem 1.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: none; flex-direction: column; align-items: center; gap: 1rem;">
+        <i class="fa-solid fa-chart-column" style="font-size: 2.5rem; color: var(--accent-color);"></i>
+        <h3 style="font-size: 1.1rem; color: var(--primary-color);">Pagos por Vendedor</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Total aprobado por vendedor, comisiones y estadísticas</span>
+      </div>
       <div class="admin-menu-card" id="menuCardUsuarios" onclick="abrirModuloAdmin('usuarios')" style="background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem 1.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column; align-items: center; gap: 1rem;">
         <i class="fa-solid fa-users-gear" style="font-size: 2.5rem; color: var(--accent-color);"></i>
         <h3 style="font-size: 1.1rem; color: var(--primary-color);">Módulo de Usuarios</h3>
@@ -1253,6 +1290,12 @@
             <div class="admin-input-group" id="pago-observaciones-grupo" style="grid-column: 1 / -1; display: none;">
               <label><i class="fa-solid fa-comment-dots"></i> Observaciones (opcional)</label>
               <textarea id="pago-observaciones" rows="2" maxlength="300" placeholder="Escriba cualquier nota sobre este pago (la verá quien lo apruebe)..." style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px; font-family: inherit; font-size: 0.9rem; resize: vertical;"></textarea>
+            </div>
+            <div class="admin-input-group" style="grid-column: 1 / -1;">
+              <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:700; color:#0f766e; background:#ccfbf1; border:1px solid #5eead4; border-radius:8px; padding:0.6rem 0.8rem;">
+                <input type="checkbox" id="pago-descuento-pp" style="width:auto; margin:0;">
+                <span><i class="fa-solid fa-percent"></i> Este monto ya viene con el descuento del 2% por pronto pago</span>
+              </label>
             </div>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
               <button onclick="registrarPago()" id="pago-btn-registrar" class="admin-btn-primary">
@@ -1521,6 +1564,39 @@
       </div>
 
       <!-- MÓDULO: ESTADO DE CUENTA -->
+      <div id="modulo-pagos-vendedor" style="display: none;" class="admin-finance-card">
+        <div class="admin-finance-header">
+          <i class="fa-solid fa-chart-column"></i> <span>Pagos Aprobados por Vendedor</span>
+        </div>
+        <div class="admin-section-box">
+          <p style="margin-bottom:0.6rem;">Solo cuentan los pagos en estado <strong>aprobado</strong>, ubicados en el período según el <strong>día en que fueron aprobados</strong>. El total en dólares es el monto fijado al aprobar cada pago (Bs ÷ tasa de ese pago).</p>
+          <div class="pv-toolbar">
+            <div><label class="pv-lab">Desde</label><input type="date" id="pv-desde"></div>
+            <div><label class="pv-lab">Hasta</label><input type="date" id="pv-hasta"></div>
+            <div><label class="pv-lab">Corte por</label>
+              <input type="hidden" id="pv-base" value="fecha_aprobacion">
+              <div style="padding:.45rem .6rem; border:1px solid #5eead4; background:#ccfbf1; color:#0f766e; border-radius:8px; font-size:.85rem; font-weight:700;"><i class="fa-solid fa-calendar-check"></i> Fecha de aprobación</div>
+            </div>
+            <div><label class="pv-lab">Vendedor</label><select id="pv-vendedor" onchange="pvRender()"><option value="">Todos</option></select></div>
+            <div><label class="pv-lab">Comisión %</label><input type="text" inputmode="decimal" id="pv-comision" placeholder="Ej: 3" style="width:80px;" oninput="pvRender()"></div>
+            <button type="button" class="principal" onclick="pvCargar()"><i class="fa-solid fa-magnifying-glass"></i> Consultar</button>
+            <button type="button" class="excel" onclick="pvExportarExcel()"><i class="fa-solid fa-file-excel"></i> Excel</button>
+          </div>
+          <div class="pv-rapidos">
+            <span>Atajos:</span>
+            <button type="button" onclick="pvRango('hoy')">Hoy</button>
+            <button type="button" onclick="pvRango('semana')">Esta semana</button>
+            <button type="button" onclick="pvRango('q1')">1ra quincena</button>
+            <button type="button" onclick="pvRango('q2')">2da quincena</button>
+            <button type="button" onclick="pvRango('mes')">Este mes</button>
+            <button type="button" onclick="pvRango('mesant')">Mes anterior</button>
+          </div>
+          <div id="pv-estado" style="font-size:0.85rem; font-weight:700; margin:0.6rem 0;"></div>
+          <div id="pv-kpis" class="pv-kpis"></div>
+          <div id="pv-contenido"></div>
+        </div>
+      </div>
+
       <div id="modulo-estado-cuenta" style="display: none;" class="admin-finance-card">
         <div class="admin-finance-header">
           <i class="fa-solid fa-file-invoice-dollar"></i> <span>Estado de Cuenta</span>
@@ -1790,6 +1866,9 @@
             </label>
             <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; margin:4px 0; cursor:pointer;">
               <input type="checkbox" id="perm-reporte_deuda" style="width:auto; margin:0;"> Acceso al Reporte de Deuda (por vendedor y zona)
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; margin:4px 0; cursor:pointer;">
+              <input type="checkbox" id="perm-pagos_vendedor" style="width:auto; margin:0;"> Acceso a Pagos por Vendedor (totales aprobados y comisiones)
             </label>
             <p style="font-size:0.75rem; color:var(--text-muted); margin-top:6px;">Al cambiar el rol se cargan los valores por defecto de ese rol; puede ajustarlos antes de guardar. El usuario recibe los cambios en menos de un minuto.</p>
           </div>
@@ -2527,6 +2606,7 @@
       if (tienePermiso(u, "modulo_pagos") || tienePermiso(u, "reportar_pagos")) lista.push("pagos");
       if (tienePermiso(u, "estado_cuenta")) lista.push("estado_cuenta");
       if (tienePermiso(u, "reporte_deuda")) lista.push("reporte_deuda");
+      if (tienePermiso(u, "pagos_vendedor")) lista.push("pagos_vendedor");
       if (esAdminGeneral(u)) lista.push("usuarios");
       return lista;
     }
@@ -2536,7 +2616,7 @@
     }
 
     function mostrarTarjetasMenu(modulos) {
-      [["ordenes", "menuCardOrdenes"], ["pagos", "menuCardPagos"], ["estado_cuenta", "menuCardEstadoCuenta"], ["reporte_deuda", "menuCardReporteDeuda"], ["usuarios", "menuCardUsuarios"]].forEach(([modulo, id]) => {
+      [["ordenes", "menuCardOrdenes"], ["pagos", "menuCardPagos"], ["estado_cuenta", "menuCardEstadoCuenta"], ["reporte_deuda", "menuCardReporteDeuda"], ["pagos_vendedor", "menuCardPagosVendedor"], ["usuarios", "menuCardUsuarios"]].forEach(([modulo, id]) => {
         const el = document.getElementById(id);
         if (el) el.style.display = modulos.includes(modulo) ? "flex" : "none";
       });
@@ -2602,6 +2682,8 @@
         abrirModuloAdmin("estado_cuenta");
       } else if (modulos.length === 1 && modulos[0] === "reporte_deuda") {
         abrirModuloAdmin("reporte_deuda");
+      } else if (modulos.length === 1 && modulos[0] === "pagos_vendedor") {
+        abrirModuloAdmin("pagos_vendedor");
       } else {
         mostrarTarjetasMenu(modulos);
         if (menuAdmin) menuAdmin.style.display = "block";
@@ -2678,6 +2760,14 @@
         if (cartBar) cartBar.style.display = "none";
         if (btnVolver) btnVolver.style.display = mostrarVolver;
         rdIniciar();
+      } else if (modulo === 'pagos_vendedor') {
+        if (appLayout) appLayout.style.display = "grid";
+        mostrarCatalogoAdmin(false);
+        if (moduloFinanzas) moduloFinanzas.style.display = "none";
+        ocultarEstadoCuenta();
+        if (cartBar) cartBar.style.display = "none";
+        if (btnVolver) btnVolver.style.display = mostrarVolver;
+        pvIniciar();
       } else if (modulo === 'usuarios') {
         openAdminModal();
         if (menuAdmin) menuAdmin.style.display = "block";
@@ -2807,7 +2897,7 @@
       if (esAdminGeneral(u)) {
         return `<span class="admin-badge" style="background:#fef3c7; color:#92400e;">Todos los privilegios</span>`;
       }
-      const items = [["modulo_ordenes", "Órdenes"], ["modulo_pagos", "Pagos completo"], ["reportar_pagos", "Reporta pagos"], ["aprobar_pagos", "Aprueba pagos"], ["estado_cuenta", "Estado de cuenta"], ["reporte_deuda", "Reporte de deuda"]];
+      const items = [["modulo_ordenes", "Órdenes"], ["modulo_pagos", "Pagos completo"], ["reportar_pagos", "Reporta pagos"], ["aprobar_pagos", "Aprueba pagos"], ["estado_cuenta", "Estado de cuenta"], ["reporte_deuda", "Reporte de deuda"], ["pagos_vendedor", "Pagos por vendedor"]];
       return items.map(([clave, texto]) => tienePermiso(u, clave)
         ? `<span class="admin-badge" style="background:#dcfce7; color:#15803d; margin:1px;">${texto}</span>`
         : `<span class="admin-badge" style="background:#f1f5f9; color:#94a3b8; margin:1px; text-decoration:line-through;">${texto}</span>`
@@ -2905,6 +2995,7 @@
       document.getElementById("perm-aprobar_pagos").checked = !!permisos.aprobar_pagos;
       document.getElementById("perm-estado_cuenta").checked = !!permisos.estado_cuenta;
       document.getElementById("perm-reporte_deuda").checked = !!permisos.reporte_deuda;
+      document.getElementById("perm-pagos_vendedor").checked = !!permisos.pagos_vendedor;
     }
 
     function leerPermisosForm() {
@@ -2914,7 +3005,8 @@
         reportar_pagos: document.getElementById("perm-reportar_pagos").checked || document.getElementById("perm-modulo_pagos").checked,
         aprobar_pagos: document.getElementById("perm-aprobar_pagos").checked,
         estado_cuenta: document.getElementById("perm-estado_cuenta").checked,
-        reporte_deuda: document.getElementById("perm-reporte_deuda").checked
+        reporte_deuda: document.getElementById("perm-reporte_deuda").checked,
+        pagos_vendedor: document.getElementById("perm-pagos_vendedor").checked
       };
     }
 
@@ -2947,7 +3039,8 @@
         reportar_pagos: tienePermiso(u, "reportar_pagos"),
         aprobar_pagos: tienePermiso(u, "aprobar_pagos"),
         estado_cuenta: tienePermiso(u, "estado_cuenta"),
-        reporte_deuda: tienePermiso(u, "reporte_deuda")
+        reporte_deuda: tienePermiso(u, "reporte_deuda"),
+        pagos_vendedor: tienePermiso(u, "pagos_vendedor")
       });
       document.getElementById("permBlock").style.display = principal ? "none" : "block";
 
@@ -3726,7 +3819,9 @@
               ${puedeAprobar ? `<input type="text" inputmode="decimal" class="input-monto" autocomplete="off" id="tasa-input-${p.id}" value="${tasaDefault > 0 ? fmtVE(tasaDefault) : ''}" placeholder="Ej. 876,80" style="width: 105px; padding: 4px; text-align: center; border: 1px solid var(--border-color); border-radius: 4px;" oninput="actualizarEquivalenteDolar('${p.id}', ${montoBs})" />` : (p.tasa || '-')}
             </td>
             <td style="text-align: right; font-weight: bold; color: #2563eb;" id="eq-dolar-${p.id}">$${calcDolares}</td>
-            <td>${escapeHtml(p.numero_referencia)} (${escapeHtml(p.banco || "N/A")})${p.observaciones ? `<div style="margin-top: 6px; padding: 6px 8px; background: #fef9c3; border-left: 3px solid #eab308; border-radius: 4px; font-size: 0.78rem; font-weight: 400; color: #713f12; white-space: pre-wrap; max-width: 260px;"><strong>Observación:</strong> ${escapeHtml(p.observaciones)}</div>` : ""}</td>
+            <td>${escapeHtml(p.numero_referencia)} (${escapeHtml(p.banco || "N/A")})${p.observaciones ? `<div style="margin-top: 6px; padding: 6px 8px; background: #fef9c3; border-left: 3px solid #eab308; border-radius: 4px; font-size: 0.78rem; font-weight: 400; color: #713f12; white-space: pre-wrap; max-width: 260px;"><strong>Observación:</strong> ${escapeHtml(p.observaciones)}</div>` : ""}
+              ${p.descuento_pronto_pago ? `<div style="margin-top:6px;"><span class="admin-badge" style="background:#ccfbf1; color:#0f766e;">Vendedor indica: con descuento ${DESCUENTO_PRONTO_PAGO_PCT}%</span></div>` : ""}
+              ${puedeAprobar ? `<label style="display:flex; align-items:center; gap:6px; margin-top:6px; font-size:0.78rem; font-weight:700; color:#0f766e; cursor:pointer;"><input type="checkbox" id="dpp-chk-${p.id}" style="width:auto; margin:0;" ${p.descuento_pronto_pago ? "checked" : ""} onchange="actualizarVistaDescuentoPP('${p.id}', ${montoBs})"> Aplicar descuento ${DESCUENTO_PRONTO_PAGO_PCT}% pronto pago</label><div id="dpp-monto-${p.id}" style="font-size:0.75rem; font-weight:600; color:#0f766e;"></div>` : ""}</td>
             <td style="text-align: center;">
               ${p.comprobante_url ? `<a href="${escapeHtml(p.comprobante_url)}" target="_blank" style="color:var(--accent-color); font-weight:bold; font-size:0.8rem;"><i class="fa-solid fa-file-arrow-down"></i> Ver</a>` : '-'}
             </td>
@@ -3775,6 +3870,7 @@
         const filas = lista.map(p => filaPago(p, gid)).join("");
         return cabecera + (abierto ? filas.replace(/style="display: none;"/g, "") : filas);
       }).join("");
+      pagos.forEach(p => actualizarVistaDescuentoPP(p.id, parseFloat(p.monto_bs || 0)));
     }
 
     // Grupos (vendedores) que están desplegados en "Pagos Pendientes por Aprobar"
@@ -3789,6 +3885,13 @@
       if (abrir) gruposPagosAbiertos.add(clave); else gruposPagosAbiertos.delete(clave);
     }
 
+    // Descuento por pronto pago: el cliente paga el (100 - X)% de la deuda.
+    const DESCUENTO_PRONTO_PAGO_PCT = 2;
+    function calcularDescuentoPP(montoPagadoUsd) {
+      const pct = DESCUENTO_PRONTO_PAGO_PCT / 100;
+      return parseFloat((montoPagadoUsd * pct / (1 - pct)).toFixed(2));
+    }
+
     function actualizarEquivalenteDolar(pagoId, montoBs) {
       const inputTasa = document.getElementById(`tasa-input-${pagoId}`);
       const eqDolar = document.getElementById(`eq-dolar-${pagoId}`);
@@ -3801,6 +3904,24 @@
         ultimaTasaUsada = tasa;
       } else {
         eqDolar.textContent = "$0.00";
+      }
+      actualizarVistaDescuentoPP(pagoId, montoBs);
+    }
+
+    // Muestra en la fila el monto del descuento que se aplicará al aprobar
+    function actualizarVistaDescuentoPP(pagoId, montoBs) {
+      const chk = document.getElementById(`dpp-chk-${pagoId}`);
+      const out = document.getElementById(`dpp-monto-${pagoId}`);
+      const inputTasa = document.getElementById(`tasa-input-${pagoId}`);
+      if (!chk || !out) return;
+      const tasa = inputTasa ? parseNumeroVE(inputTasa.value) : 0;
+      if (chk.checked && tasa > 0) {
+        const usd = parseFloat((montoBs / tasa).toFixed(2));
+        out.textContent = `Se restará además $${fmtVE(calcularDescuentoPP(usd))}`;
+      } else if (chk.checked) {
+        out.textContent = "Ingrese la tasa para calcular";
+      } else {
+        out.textContent = "";
       }
     }
 
@@ -4118,6 +4239,8 @@
       });
       const fecha = document.getElementById("pago-fecha");
       if (fecha) fecha.value = new Date().toLocaleDateString("en-CA");
+      const chkPP = document.getElementById("pago-descuento-pp");
+      if (chkPP) chkPP.checked = false;
       const info = document.getElementById("pago-cliente-info");
       if (info) info.textContent = "";
       status.textContent = "";
@@ -4226,6 +4349,8 @@
         estado: "pendiente"
       };
       if (observaciones) registro.observaciones = observaciones;
+      const chkDescPP = document.getElementById("pago-descuento-pp");
+      if (chkDescPP && chkDescPP.checked) registro.descuento_pronto_pago = true;
 
       const { error } = await _supabase.from("pagos_registrados").insert([registro]);
 
@@ -4235,7 +4360,9 @@
         console.error("Error al registrar pago:", error);
         const pistaObs = (error.message || "").toLowerCase().includes("observaciones")
           ? " Falta ejecutar el script SQL que agrega la columna observaciones en pagos_registrados."
-          : "";
+          : ((error.message || "").toLowerCase().includes("descuento_pronto_pago")
+            ? " Falta ejecutar el script SQL que agrega la columna descuento_pronto_pago en pagos_registrados."
+            : "");
         setStatus("No se pudo registrar el pago: " + error.message + pistaObs, "#dc2626");
         return;
       }
@@ -4247,6 +4374,7 @@
       document.getElementById("pago-referencia").value = "";
       document.getElementById("pago-banco").value = "";
       if (campoObs) campoObs.value = "";
+      if (chkDescPP) chkDescPP.checked = false;
       if (inputComprobante) inputComprobante.value = "";
       if (!limitado) cargarPagosPendientes();
     }
@@ -4270,7 +4398,16 @@
         }
       }
 
-      if (!confirm(`¿Está seguro de marcar este pago como ${nuevoEstado.toUpperCase()}?`)) return;
+      const chkDPP = document.getElementById(`dpp-chk-${pagoId}`);
+      const aplicarDPP = nuevoEstado === "aprobado" && !!(chkDPP && chkDPP.checked);
+
+      let textoConfirm = `¿Está seguro de marcar este pago como ${nuevoEstado.toUpperCase()}?`;
+      if (aplicarDPP) {
+        const { data: pPrev } = await _supabase.from("pagos_registrados").select("monto_bs").eq("id", pagoId).single();
+        const usdPrev = pPrev ? parseFloat((parseFloat(pPrev.monto_bs || 0) / tasaFinal).toFixed(2)) : 0;
+        textoConfirm += `\n\nSe aplicará también el descuento por pronto pago (${DESCUENTO_PRONTO_PAGO_PCT}%): $${fmtVE(calcularDescuentoPP(usdPrev))}.`;
+      }
+      if (!confirm(textoConfirm)) return;
 
       const datosUpdate = { estado: nuevoEstado };
       if (nuevoEstado === "aprobado") {
@@ -4280,6 +4417,7 @@
 
         datosUpdate.tasa = tasaFinal;
         datosUpdate.monto = montoDolares;
+        datosUpdate.fecha_aprobacion = new Date().toISOString();
       }
 
       const { data: reclamado, error: errReclamo } = await _supabase
@@ -4304,7 +4442,7 @@
         const mBs = parseFloat(pago.monto_bs || 0);
 
         const revertir = async (mensaje) => {
-          await _supabase.from("pagos_registrados").update({ estado: "pendiente", tasa: null, monto: 0 }).eq("id", pagoId);
+          await _supabase.from("pagos_registrados").update({ estado: "pendiente", tasa: null, monto: 0, fecha_aprobacion: null }).eq("id", pagoId);
           alert(mensaje + "\n\nEl pago volvió a quedar pendiente; no se modificó la deuda.");
           cargarPagosPendientes();
         };
@@ -4319,6 +4457,31 @@
         const deudaPrev = parseFloat(cliente.deuda_actual || 0);
         const nuevoSaldo = parseFloat((deudaPrev - montoDolares).toFixed(2));
 
+        // Descuento por pronto pago (opcional): queda como ajuste YA aprobado, en el mismo paso
+        const descuentoPP = aplicarDPP ? calcularDescuentoPP(montoDolares) : 0;
+        let ajusteDPPId = null;
+        if (descuentoPP > 0) {
+          const { data: ajNuevo, error: errAj } = await _supabase.from("ajustes_cuenta").insert([{
+            rif_cedula: pago.rif_cedula,
+            nombre_cliente: pago.nombre_cliente,
+            tipo: "DESCUENTO",
+            motivo: "Pronto Pago",
+            numero_factura: null,
+            descripcion: `Descuento ${DESCUENTO_PRONTO_PAGO_PCT}% aplicado al aprobar el pago ref. ${pago.numero_referencia}`,
+            monto: descuentoPP,
+            estado: "aprobado",
+            solicitado_por: pago.vendedor_usuario || currentUser.usuario,
+            aprobado_por: currentUser.usuario,
+            fecha_resolucion: new Date().toISOString()
+          }]).select();
+          if (errAj || !ajNuevo || !ajNuevo[0]) {
+            await revertir("No se pudo registrar el descuento por pronto pago" + (errAj ? ": " + errAj.message : "") + ".");
+            return;
+          }
+          ajusteDPPId = ajNuevo[0].id;
+        }
+        const saldoFinal = parseFloat((nuevoSaldo - descuentoPP).toFixed(2));
+
         // Registro exacto en el Kardex con Monto en Bs y Tasa (idéntico al formato de facturas)
         const { error: errHist } = await _supabase.from("historial_cuentas").insert([{
           rif_cedula: pago.rif_cedula,
@@ -4331,12 +4494,29 @@
           creado_por: currentUser.usuario
         }]);
         if (errHist) {
+          if (ajusteDPPId) await _supabase.from("ajustes_cuenta").delete().eq("id", ajusteDPPId);
           await revertir("No se pudo guardar el movimiento en el historial: " + errHist.message);
           return;
         }
 
+        if (descuentoPP > 0) {
+          const { error: errHistDesc } = await _supabase.from("historial_cuentas").insert([{
+            rif_cedula: pago.rif_cedula,
+            tipo_movimiento: "DESCUENTO",
+            monto: descuentoPP,
+            signo: "-",
+            saldo_resultante: saldoFinal,
+            referencia_doc: pago.numero_referencia,
+            observacion: `Pronto Pago ${DESCUENTO_PRONTO_PAGO_PCT}% (aprobado por ${currentUser.usuario})`,
+            creado_por: currentUser.usuario
+          }]);
+          if (errHistDesc) {
+            alert("ATENCIÓN: el pago quedó aprobado pero no se pudo guardar el descuento en el historial: " + errHistDesc.message + "\nRevise el Kardex del cliente.");
+          }
+        }
+
         const { error: errDeuda } = await _supabase
-          .from("clientes").update({ deuda_actual: nuevoSaldo }).eq("rif_cedula", pago.rif_cedula);
+          .from("clientes").update({ deuda_actual: saldoFinal }).eq("rif_cedula", pago.rif_cedula);
         invalidarCacheClientes();
         if (errDeuda) {
           alert("ATENCIÓN: el movimiento quedó en el historial pero no se pudo actualizar la deuda del cliente: " + errDeuda.message);
@@ -4345,8 +4525,9 @@
         }
       }
 
-      alert(`Pago ${nuevoEstado} exitosamente.`);
+      alert(`Pago ${nuevoEstado} exitosamente.` + (aplicarDPP ? " Descuento por pronto pago aplicado." : ""));
       cargarPagosPendientes();
+      if (aplicarDPP && typeof cargarAjustes === "function") cargarAjustes();
     }
 
     /* =========================================================
@@ -5326,10 +5507,257 @@
       return esVendedorRestringido();
     }
 
+    /* =========================================================
+       MÓDULO: PAGOS APROBADOS POR VENDEDOR
+       Solo pagos con estado "aprobado". USD = monto fijado al aprobar.
+    ========================================================= */
+    let pvPagos = [];
+    let pvNombres = {};
+    let pvGrupos = [];
+    let pvAbiertos = new Set();
+
+    function pvFechaTxt(v) {
+      if (!v) return "-";
+      const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v);
+    }
+    function pvDia(p, base) {
+      if (base === "created_at" || base === "fecha_aprobacion") return p[base] ? new Date(p[base]).toLocaleDateString("en-CA") : "";
+      return p.fecha_pago ? String(p.fecha_pago).slice(0, 10) : "";
+    }
+
+    function pvRango(tipo) {
+      const hoy = new Date();
+      const y = hoy.getFullYear(), m = hoy.getMonth();
+      let d = new Date(hoy), h = new Date(hoy);
+      if (tipo === "semana") { d.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7)); }
+      else if (tipo === "q1") { d = new Date(y, m, 1); h = new Date(y, m, 15); }
+      else if (tipo === "q2") { d = new Date(y, m, 16); h = new Date(y, m + 1, 0); }
+      else if (tipo === "mes") { d = new Date(y, m, 1); h = new Date(y, m + 1, 0); }
+      else if (tipo === "mesant") { d = new Date(y, m - 1, 1); h = new Date(y, m, 0); }
+      document.getElementById("pv-desde").value = d.toLocaleDateString("en-CA");
+      document.getElementById("pv-hasta").value = h.toLocaleDateString("en-CA");
+      pvCargar();
+    }
+
+    function pvIniciar() {
+      if (!tienePermiso(currentUser, "pagos_vendedor")) return;
+      const el = document.getElementById("modulo-pagos-vendedor");
+      if (el) el.style.display = "block";
+      try { const c = localStorage.getItem("pv_comision"); if (c) document.getElementById("pv-comision").value = c; } catch (e) {}
+      const desde = document.getElementById("pv-desde");
+      if (!desde.value) pvRango("mes"); else pvCargar();
+    }
+
+    async function pvCargar() {
+      const est = document.getElementById("pv-estado");
+      const desde = document.getElementById("pv-desde").value;
+      const hasta = document.getElementById("pv-hasta").value;
+      const base = document.getElementById("pv-base").value;
+      if (desde && hasta && desde > hasta) { est.style.color = "#dc2626"; est.textContent = "La fecha 'Desde' no puede ser mayor que 'Hasta'."; return; }
+      est.style.color = "var(--text-muted)";
+      est.textContent = "Cargando pagos aprobados...";
+
+      const todos = [];
+      const paso = 1000;
+      for (let desdeFila = 0; ; desdeFila += paso) {
+        let q = _supabase.from("pagos_registrados")
+          .select("id, nombre_cliente, rif_cedula, vendedor_usuario, monto_bs, monto, tasa, numero_referencia, banco, fecha_pago, created_at, fecha_aprobacion")
+          .eq("estado", "aprobado");
+        if (base === "created_at" || base === "fecha_aprobacion") {
+          if (desde) q = q.gte(base, new Date(desde + "T00:00:00").toISOString());
+          if (hasta) { const h = new Date(hasta + "T00:00:00"); h.setDate(h.getDate() + 1); q = q.lt(base, h.toISOString()); }
+          q = q.order(base, { ascending: true });
+        } else {
+          if (desde) q = q.gte("fecha_pago", desde);
+          if (hasta) q = q.lte("fecha_pago", hasta);
+          q = q.order("fecha_pago", { ascending: true });
+        }
+        q = q.order("id", { ascending: true });
+        const { data, error } = await q.range(desdeFila, desdeFila + paso - 1);
+        if (error) {
+          est.style.color = "#dc2626";
+          est.textContent = "No se pudieron cargar los pagos: " + error.message + ((error.message || "").includes("fecha_aprobacion") ? " Falta ejecutar el script SQL que agrega la columna fecha_aprobacion en pagos_registrados." : "");
+          return;
+        }
+        todos.push(...(data || []));
+        if (!data || data.length < paso) break;
+      }
+      pvPagos = todos;
+
+      const usuarios = [...new Set(todos.map(p => p.vendedor_usuario).filter(Boolean))];
+      pvNombres = {};
+      if (usuarios.length) {
+        const { data: us } = await _supabase.from("usuarios").select("usuario, nombre_completo").in("usuario", usuarios);
+        (us || []).forEach(u => { pvNombres[u.usuario] = u.nombre_completo || u.usuario; });
+      }
+
+      const sel = document.getElementById("pv-vendedor");
+      const previo = sel.value;
+      const claves = [...new Set(todos.map(p => p.vendedor_usuario || "(sin vendedor)"))]
+        .sort((a, b) => (pvNombres[a] || a).localeCompare(pvNombres[b] || b));
+      sel.innerHTML = `<option value="">Todos</option>` + claves.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(pvNombres[c] || c)}</option>`).join("");
+      if (claves.includes(previo)) sel.value = previo;
+
+      est.textContent = "";
+      if (base === "fecha_aprobacion") {
+        const { count } = await _supabase.from("pagos_registrados").select("id", { count: "exact", head: true }).eq("estado", "aprobado").is("fecha_aprobacion", null);
+        if (count > 0) {
+          est.style.color = "#b45309";
+          est.textContent = `Aviso: ${count} pago${count === 1 ? "" : "s"} aprobado${count === 1 ? "" : "s"} antes de este cambio no tiene fecha de aprobación y no aparece${count === 1 ? "" : "n"} en los totales. Ejecute el script de relleno en la base de datos.`;
+        }
+      }
+      pvRender();
+    }
+
+    function pvComisionPct() {
+      const v = parseNumeroVE(document.getElementById("pv-comision").value);
+      return isFinite(v) && v > 0 ? v : 0;
+    }
+
+    function pvRender() {
+      const cont = document.getElementById("pv-contenido");
+      const kpis = document.getElementById("pv-kpis");
+      const filtro = document.getElementById("pv-vendedor").value;
+      const base = document.getElementById("pv-base").value;
+      const pct = pvComisionPct();
+      try { localStorage.setItem("pv_comision", document.getElementById("pv-comision").value); } catch (e) {}
+
+      const lista = pvPagos.filter(p => !filtro || (p.vendedor_usuario || "(sin vendedor)") === filtro);
+      if (lista.length === 0) {
+        kpis.innerHTML = "";
+        pvGrupos = [];
+        cont.innerHTML = `<p style="text-align:center; color:var(--text-muted); padding:1.5rem;">No hay pagos aprobados en el período seleccionado.</p>`;
+        return;
+      }
+
+      const mapa = {};
+      lista.forEach(p => {
+        const c = p.vendedor_usuario || "(sin vendedor)";
+        if (!mapa[c]) mapa[c] = { clave: c, nombre: pvNombres[c] || c, pagos: [], bs: 0, usd: 0 };
+        mapa[c].pagos.push(p);
+        mapa[c].bs += parseFloat(p.monto_bs || 0);
+        mapa[c].usd += parseFloat(p.monto || 0);
+      });
+      pvGrupos = Object.values(mapa).sort((a, b) => b.usd - a.usd);
+
+      const totBs = pvGrupos.reduce((s, g) => s + g.bs, 0);
+      const totUsd = pvGrupos.reduce((s, g) => s + g.usd, 0);
+      const tasaProm = totUsd > 0 ? totBs / totUsd : 0;
+      const maxUsd = pvGrupos[0].usd || 1;
+      const mejor = pvGrupos[0];
+
+      kpis.innerHTML = `
+        <div class="pv-kpi verde"><small>Total aprobado ($)</small><b>$ ${fmtVE(totUsd)}</b><span>${lista.length} pago${lista.length === 1 ? "" : "s"}</span></div>
+        <div class="pv-kpi"><small>Total aprobado (Bs.)</small><b>Bs. ${fmtVE(totBs)}</b></div>
+        <div class="pv-kpi"><small>Tasa promedio ponderada</small><b>${fmtVE(tasaProm)}</b><span>Bs ÷ $ del período</span></div>
+        <div class="pv-kpi azul"><small>Promedio por pago</small><b>$ ${fmtVE(totUsd / lista.length)}</b></div>
+        <div class="pv-kpi"><small>Vendedores con pagos</small><b>${pvGrupos.length}</b><span>Mayor: ${escapeHtml(mejor.nombre)}</span></div>
+        ${pct > 0 ? `<div class="pv-kpi verde"><small>Comisión total (${fmtVE(pct)}%)</small><b>$ ${fmtVE(totUsd * pct / 100)}</b></div>` : ""}`;
+
+      const colCom = pct > 0;
+      const filas = pvGrupos.map((g, i) => {
+        const tasaG = g.usd > 0 ? g.bs / g.usd : 0;
+        const abierto = pvAbiertos.has(g.clave);
+        const det = abierto ? `
+          <tr class="pv-det-cab"><td colspan="${colCom ? 7 : 6}">Detalle de ${escapeHtml(g.nombre)}</td></tr>
+          <tr class="pv-det-cab"><td>Fecha pago</td><td>Cliente / Referencia</td><td></td><td class="num">Monto Bs.</td><td class="num">Tasa</td><td class="num">Monto $</td>${colCom ? "<td></td>" : ""}</tr>
+          ${g.pagos.map(p => `
+            <tr class="pv-det">
+              <td>${escapeHtml(pvFechaTxt(p.fecha_pago))}${p.fecha_aprobacion ? `<br><span style="color:var(--text-muted); font-size:.68rem;">aprob. ${escapeHtml(new Date(p.fecha_aprobacion).toLocaleDateString("es-VE"))}</span>` : ""}</td>
+              <td colspan="2">${escapeHtml(p.nombre_cliente || "")} <span style="color:var(--text-muted);">· Ref ${escapeHtml(p.numero_referencia || "-")}${p.banco ? " · " + escapeHtml(p.banco) : ""}</span></td>
+              <td class="num">${fmtVE(p.monto_bs)}</td>
+              <td class="num">${p.tasa ? fmtVE(p.tasa) : "-"}</td>
+              <td class="num">$ ${fmtVE(p.monto)}</td>
+              ${colCom ? "<td></td>" : ""}
+            </tr>`).join("")}` : "";
+        return `
+          <tr class="pv-fila" onclick="pvToggle(${i})">
+            <td><i class="fa-solid fa-chevron-${abierto ? "down" : "right"}" style="font-size:.7rem; color:#64748b;"></i> <strong>${escapeHtml(g.nombre)}</strong></td>
+            <td class="num">${g.pagos.length}</td>
+            <td class="num">Bs. ${fmtVE(g.bs)}</td>
+            <td class="num">${fmtVE(tasaG)}</td>
+            <td class="num" style="color:#15803d;">$ ${fmtVE(g.usd)}</td>
+            <td><div class="pv-barra" title="${fmtVE(g.usd / totUsd * 100, 1)}% del total"><i style="width:${(g.usd / maxUsd * 100).toFixed(1)}%"></i></div><span style="font-size:.7rem; color:#64748b;">${fmtVE(g.usd / totUsd * 100, 1)}%</span></td>
+            ${colCom ? `<td class="num" style="color:#2563eb;">$ ${fmtVE(g.usd * pct / 100)}</td>` : ""}
+          </tr>${det}`;
+      }).join("");
+
+      // Tendencia: por día (≤ 62 días distintos de rango) o por mes
+      const dias = {};
+      lista.forEach(p => { const d = pvDia(p, base); if (d) dias[d] = (dias[d] || 0) + parseFloat(p.monto || 0); });
+      const claveDias = Object.keys(dias).sort();
+      const porMes = claveDias.length > 62;
+      const serie = {};
+      claveDias.forEach(d => { const k = porMes ? d.slice(0, 7) : d; serie[k] = (serie[k] || 0) + dias[d]; });
+      const ks = Object.keys(serie).sort();
+      const maxS = Math.max(...ks.map(k => serie[k]), 1);
+      const etiqueta = (k) => porMes ? k.slice(5) + "/" + k.slice(2, 4) : k.slice(8) + "/" + k.slice(5, 7);
+      const tend = ks.map(k => `<div title="${etiqueta(k)}: $ ${fmtVE(serie[k])}"><i style="height:${Math.max(2, serie[k] / maxS * 100).toFixed(1)}%"></i><em>${etiqueta(k)}</em></div>`).join("");
+
+      cont.innerHTML = `
+        <div class="admin-table-wrapper">
+          <table class="pv-tabla">
+            <thead><tr>
+              <th>Vendedor</th><th style="text-align:right;">Pagos</th><th style="text-align:right;">Total Bs.</th>
+              <th style="text-align:right;">Tasa prom.</th><th style="text-align:right;">Total $ aprobado</th><th>Participación</th>
+              ${colCom ? `<th style="text-align:right;">Comisión ${fmtVE(pct)}%</th>` : ""}
+            </tr></thead>
+            <tbody>
+              ${filas}
+              <tr class="pv-total">
+                <td>TOTAL</td><td class="num">${lista.length}</td><td class="num">Bs. ${fmtVE(totBs)}</td>
+                <td class="num">${fmtVE(tasaProm)}</td><td class="num">$ ${fmtVE(totUsd)}</td><td></td>
+                ${colCom ? `<td class="num">$ ${fmtVE(totUsd * pct / 100)}</td>` : ""}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:.75rem; color:var(--text-muted); margin-top:.4rem;">Haga clic en un vendedor para ver sus pagos uno por uno. La tasa promedio es ponderada (total Bs ÷ total $).</p>
+        <div class="pv-sub">Evolución del monto aprobado ($) ${porMes ? "por mes" : "por día"}</div>
+        <div class="pv-tend">${tend}</div>`;
+    }
+
+    function pvToggle(i) {
+      const g = pvGrupos[i];
+      if (!g) return;
+      if (pvAbiertos.has(g.clave)) pvAbiertos.delete(g.clave); else pvAbiertos.add(g.clave);
+      pvRender();
+    }
+
+    function pvExportarExcel() {
+      if (typeof XLSX === "undefined") { alert("La librería de Excel no está cargada. Verifique su conexión a internet."); return; }
+      if (!pvGrupos.length) { alert("No hay datos para exportar. Realice una consulta primero."); return; }
+      const pct = pvComisionPct();
+      const desde = document.getElementById("pv-desde").value, hasta = document.getElementById("pv-hasta").value;
+      const resumen = [["Pagos aprobados por vendedor"], [`Período: ${pvFechaTxt(desde)} al ${pvFechaTxt(hasta)}`], [],
+        ["Vendedor", "Usuario", "Pagos", "Total Bs.", "Tasa prom.", "Total $ aprobado"].concat(pct > 0 ? [`Comisión ${pct}% ($)`] : [])];
+      let tBs = 0, tUsd = 0, tN = 0;
+      pvGrupos.forEach(g => {
+        tBs += g.bs; tUsd += g.usd; tN += g.pagos.length;
+        resumen.push([g.nombre, g.clave, g.pagos.length, +g.bs.toFixed(2), g.usd > 0 ? +(g.bs / g.usd).toFixed(2) : 0, +g.usd.toFixed(2)].concat(pct > 0 ? [+(g.usd * pct / 100).toFixed(2)] : []));
+      });
+      resumen.push(["TOTAL", "", tN, +tBs.toFixed(2), tUsd > 0 ? +(tBs / tUsd).toFixed(2) : 0, +tUsd.toFixed(2)].concat(pct > 0 ? [+(tUsd * pct / 100).toFixed(2)] : []));
+      const detalle = [["Vendedor", "Fecha pago", "Registrado", "Aprobado", "Cliente", "RIF", "Referencia", "Banco", "Monto Bs.", "Tasa", "Monto $"]];
+      pvGrupos.forEach(g => g.pagos.forEach(p => detalle.push([
+        g.nombre, pvFechaTxt(p.fecha_pago), p.created_at ? new Date(p.created_at).toLocaleDateString("es-VE") : "", p.fecha_aprobacion ? new Date(p.fecha_aprobacion).toLocaleDateString("es-VE") : "",
+        p.nombre_cliente || "", p.rif_cedula || "", p.numero_referencia || "", p.banco || "",
+        +parseFloat(p.monto_bs || 0).toFixed(2), p.tasa ? +parseFloat(p.tasa).toFixed(2) : "", +parseFloat(p.monto || 0).toFixed(2)
+      ])));
+      const wb = XLSX.utils.book_new();
+      const ws1 = XLSX.utils.aoa_to_sheet(resumen); ws1["!cols"] = [{ wch: 28 }, { wch: 16 }, { wch: 8 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 16 }];
+      const ws2 = XLSX.utils.aoa_to_sheet(detalle); ws2["!cols"] = [{ wch: 24 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, ws1, "Resumen");
+      XLSX.utils.book_append_sheet(wb, ws2, "Detalle");
+      XLSX.writeFile(wb, `Pagos_Aprobados_por_Vendedor_${desde || "inicio"}_${hasta || "hoy"}.xlsx`);
+    }
+
     function ocultarEstadoCuenta() {
       const el = document.getElementById("modulo-estado-cuenta");
       if (el) el.style.display = "none";
       ocultarReporteDeuda();
+      const pv = document.getElementById("modulo-pagos-vendedor");
+      if (pv) pv.style.display = "none";
     }
 
     function iniciarEstadoCuenta() {
