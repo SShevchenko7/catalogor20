@@ -1793,7 +1793,7 @@
           <!-- NOTAS Y OBSERVACIONES -->
           <div class="input-group-modal full-width" style="margin-top: 5px;">
             <label><i class="fa-solid fa-note-sticky"></i> NOTAS / FRAGANCIAS / OBSERVACIONES (Opcional)</label>
-            <textarea id="orderNoteInput" rows="2" placeholder="Ej. Caja Nutribela: 3 de Argán, 4 de Chocolate y 5 de Keratina..."></textarea>
+            <textarea id="orderNoteInput" rows="2" oninput="guardarNotaPedido()" placeholder="Ej. Caja Nutribela: 3 de Argán, 4 de Chocolate y 5 de Keratina..."></textarea>
           </div>
         </div>
         <div id="modalCartList"></div>
@@ -2167,6 +2167,33 @@
         console.error("Error al cargar de localStorage", e);
         cart = {};
       }
+    }
+
+    // Nota / fragancias del pedido en curso: se conserva mientras el pedido siga abierto
+    const STORAGE_KEY_NOTE = "rami_active_order_note";
+
+    function guardarNotaPedido() {
+      try {
+        const el = document.getElementById("orderNoteInput");
+        const txt = el ? el.value : "";
+        if (txt.trim()) localStorage.setItem(STORAGE_KEY_NOTE, txt);
+        else localStorage.removeItem(STORAGE_KEY_NOTE);
+      } catch (e) {}
+    }
+
+    function cargarNotaPedido() {
+      try {
+        const el = document.getElementById("orderNoteInput");
+        const txt = localStorage.getItem(STORAGE_KEY_NOTE);
+        if (el && txt && !el.value) el.value = txt;
+      } catch (e) {}
+    }
+
+    // Se usa al enviar o cancelar el pedido: deja el campo limpio para el siguiente
+    function limpiarNotaPedido() {
+      const el = document.getElementById("orderNoteInput");
+      if (el) el.value = "";
+      try { localStorage.removeItem(STORAGE_KEY_NOTE); } catch (e) {}
     }
 
     function limpiarOrdenDeLocalStorage() {
@@ -2852,6 +2879,7 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       cargarOrdenDeLocalStorage();
+      if (Object.keys(cart).length) cargarNotaPedido(); else limpiarNotaPedido();
       inicializarBuscadoresCliente();
       const savedSession = localStorage.getItem("rami_session");
       if (savedSession) {
@@ -6550,6 +6578,7 @@
       }
 
       guardarOrdenEnLocalStorage();
+      if (!Object.keys(cart).length) limpiarNotaPedido();
 
       const activeMode = productModes[codigo] || "UNIDAD";
       if (activeMode === currentMode) {
@@ -6628,7 +6657,7 @@
         document.getElementById("telefonoInput").value = "";
         document.getElementById("sectorSelect").value = "";
         document.getElementById("addressInput").value = "";
-        document.getElementById("orderNoteInput").value = "";
+        limpiarNotaPedido();
         reiniciarSeleccionCliente();
 
         filterProducts();
@@ -6919,7 +6948,7 @@
       document.getElementById("telefonoInput").value = "";
       document.getElementById("sectorSelect").value = "";
       document.getElementById("addressInput").value = "";
-      document.getElementById("orderNoteInput").value = "";
+      limpiarNotaPedido();
       reiniciarSeleccionCliente();
 
       filterProducts();
