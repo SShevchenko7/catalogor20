@@ -1759,11 +1759,15 @@
               <input 
                 type="text" 
                 id="numDocInput" 
-                placeholder="12345678" 
+                placeholder="Solo números (sin letra ni guión)" 
+                inputmode="numeric" 
+                autocomplete="off" 
+                oninput="normalizarNumDocInput()" 
                 onblur="ejecutarBusquedaClienteAuto()" 
                 onkeyup="if(event.key==='Enter') ejecutarBusquedaClienteAuto()"
               >
             </div>
+            <div id="numDocAviso" role="alert" style="display:none; margin-top:0.35rem; font-size:0.8rem; font-weight:600; color:#dc2626;"></div>
           </div>
 
           <!-- CLIENTE / LOCAL -->
@@ -2242,6 +2246,47 @@
        GESTIÓN Y AUTOCOMPLETADO DE CLIENTES (SUPABASE)
     ========================================================= */
 
+    // El tipo (V, E, J, G) SOLO se elige en el selector; este campo admite únicamente números.
+    // Lo que no sea número se descarta (también al pegar) y se avisa. El selector nunca se cambia solo.
+    let temporizadorAvisoNumDoc = null;
+    function mostrarAvisoNumDoc(texto) {
+      const a = document.getElementById("numDocAviso");
+      if (!a) return;
+      a.textContent = texto;
+      a.style.display = "block";
+      if (temporizadorAvisoNumDoc) clearTimeout(temporizadorAvisoNumDoc);
+      temporizadorAvisoNumDoc = setTimeout(ocultarAvisoNumDoc, 8000);
+    }
+    function ocultarAvisoNumDoc() {
+      const a = document.getElementById("numDocAviso");
+      if (a) { a.style.display = "none"; a.textContent = ""; }
+      if (temporizadorAvisoNumDoc) { clearTimeout(temporizadorAvisoNumDoc); temporizadorAvisoNumDoc = null; }
+    }
+
+    function normalizarNumDocInput() {
+      const el = document.getElementById("numDocInput");
+      if (!el || el.disabled || el.readOnly) return;
+      const original = el.value;
+      const limpio = original.replace(/\D/g, "");
+
+      if (limpio !== original) {
+        // Conserva la posición del cursor al quitar los caracteres no numéricos
+        const pos = el.selectionStart == null ? original.length : el.selectionStart;
+        const nuevaPos = original.slice(0, pos).replace(/\D/g, "").length;
+        el.value = limpio;
+        try { el.setSelectionRange(nuevaPos, nuevaPos); } catch (e) { /* algunos navegadores no lo permiten */ }
+        if (/[^\d.\s]/.test(original)) {
+          mostrarAvisoNumDoc("⚠ Aquí solo van números, sin letras ni guiones. La letra (V, E, J o G) se elige en el selector de la izquierda. Revise que el tipo elegido sea el correcto.");
+          return;
+        }
+      }
+      if (limpio.length > 10) {
+        mostrarAvisoNumDoc("⚠ El RIF / Cédula no puede tener más de 10 números. Revise el dato.");
+        return;
+      }
+      ocultarAvisoNumDoc();
+    }
+
     function construirRifCedulaCompleto() {
       const tipo = document.getElementById("tipoDocInput").value;
       const num = document.getElementById("numDocInput").value.trim();
@@ -2423,10 +2468,14 @@
       if (input) input.value = "Cliente nuevo";
 
       // Si lo escrito parece un RIF / cédula se coloca ahí; si no, se toma como el nombre
-      const m = texto.match(/^([VEJG])?[-\s]?(\d[\d.]*)$/i);
+      const dobleLetra = /^[VEJG][-\s.]*[VEJG][-\s.]*\d/i.test(texto);
+      const m = !dobleLetra && /^([VEJG][-\s.]*)?\d[\d.\-\s]*$/i.test(texto);
       if (m) {
-        document.getElementById("tipoDocInput").value = (m[1] || "V").toUpperCase();
-        document.getElementById("numDocInput").value = m[2].replace(/\./g, "");
+        const letra = (texto.match(/[VEJG]/i) || ["V"])[0].toUpperCase();
+        document.getElementById("tipoDocInput").value = letra;
+        document.getElementById("numDocInput").value = texto.replace(/\D/g, "");
+      } else if (dobleLetra) {
+        setInfoClienteOrden("El código tiene dos letras. Elija el tipo (V, E, J o G) en el selector y escriba solo el número.", "#dc2626");
       } else if (texto) {
         document.getElementById("clientNameInput").value = texto;
       }
@@ -6890,6 +6939,24 @@
       if (!cliente || !numDocOnly || !telefono || !sector) {
         alert("Por favor completa el Cliente, la Cédula / RIF, el Teléfono y selecciona un Sector.");
         return;
+      }
+
+      // Cliente nuevo: el RIF / Cédula debe ser solo números (la letra va en el selector).
+      // Si no cumple, NO se registra el cliente ni se envía la orden.
+      if (clienteOrden.modo === "nuevo") {
+        if (!/^\d{5,10}$/.test(numDocOnly)) {
+          alert("RIF / Cédula inválido: debe tener entre 5 y 10 números, sin letras, guiones ni espacios.\n\nElija el tipo (V, E, J o G) en el selector y escriba solo el número.\n\nNo se registró el cliente ni se envió la orden.");
+          const campo = document.getElementById("numDocInput");
+          if (campo) campo.focus();
+          return;
+        }
+        // Confirmación final del código con el que quedará registrado
+        const okRif = confirm(`Se registrará un cliente NUEVO con este RIF / Cédula:\n\n${rifCedula}\nCliente: ${cliente}\n\n¿Es correcto?\n(Verifique que la letra ${rifCedula.charAt(0)} sea la del tipo de documento: V cédula, E extranjero, J empresa, G gobierno.)`);
+        if (!okRif) {
+          const campo = document.getElementById("numDocInput");
+          if (campo) campo.focus();
+          return;
+        }
       }
 
       const resultadoCliente = await guardarOActualizarClienteBD({
