@@ -1342,10 +1342,16 @@
 
         <!-- SECCIÓN: HISTORIAL DE PAGOS REPORTADOS -->
         <div class="admin-section-box finanzas-completa">
-          <h3><i class="fa-solid fa-list-check" style="color: #475569;"></i> Historial de Pagos Reportados <span id="hp-titulo-extra" style="font-weight:600; color:var(--text-muted); font-size:0.85rem;">(últimos 5)</span></h3>
+          <h3><i class="fa-solid fa-list-check" style="color: #475569;"></i> Historial de Pagos Reportados <span id="hp-titulo-extra" style="font-weight:600; color:var(--text-muted); font-size:0.85rem;">(últimos 20)</span></h3>
           <p>Todos los pagos reportados con su estado: pendientes, aprobados y rechazados.</p>
           <div class="filtro-hist">
-            <div><label>Desde (fecha de registro)</label><input type="date" id="hp-desde"></div>
+            <div><label>Filtrar por fecha de</label>
+              <select id="hp-campo-fecha">
+                <option value="created_at">Registro</option>
+                <option value="fecha_aprobacion">Aprobación</option>
+              </select>
+            </div>
+            <div><label>Desde</label><input type="date" id="hp-desde"></div>
             <div><label>Hasta</label><input type="date" id="hp-hasta"></div>
             <div><label>Estado</label>
               <select id="hp-estado">
@@ -1356,7 +1362,16 @@
               </select>
             </div>
             <button type="button" class="fh-aplicar" onclick="cargarHistorialPagos()"><i class="fa-solid fa-filter"></i> Filtrar</button>
-            <button type="button" class="fh-limpiar" onclick="limpiarFiltroHistorialPagos()">Últimos 5</button>
+            <div><label>Mostrar (sin filtro)</label>
+              <select id="hp-limite" onchange="cargarHistorialPagos()">
+                <option value="10">Últimos 10</option>
+                <option value="20" selected>Últimos 20</option>
+                <option value="50">Últimos 50</option>
+                <option value="100">Últimos 100</option>
+                <option value="200">Últimos 200</option>
+              </select>
+            </div>
+            <button type="button" class="fh-limpiar" onclick="limpiarFiltroHistorialPagos()">Limpiar filtro</button>
             <span class="fh-info" id="hp-info"></span>
           </div>
           <div class="admin-table-wrapper">
@@ -3258,8 +3273,13 @@
       if (!lista.length) { div.innerHTML = ""; return; }
       lista.sort((a, b) => b.montoBs - a.montoBs);
       const td = 'style="padding: 6px 10px; border-bottom: 1px solid var(--border-color);"';
+      const totalFacturasSinCargar = lista.reduce((a, f) => a + f.facturas, 0);
       div.innerHTML = `
-        <div style="font-size: 0.8rem; font-weight: 700; margin-bottom: 0.4rem; color: #b45309;">
+        <details>
+        <summary style="cursor: pointer; font-size: 0.8rem; font-weight: 700; color: #b45309;">
+          Ver clientes no encontrados (${lista.length} códigos, ${totalFacturasSinCargar} facturas sin cargar)
+        </summary>
+        <div style="font-size: 0.8rem; font-weight: 700; margin: 0.5rem 0 0.4rem; color: #b45309;">
           Códigos del Excel que no corresponden a ningún cliente (esas facturas NO se cargaron):
         </div>
         <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; font-weight: 400;">
@@ -3285,7 +3305,8 @@
         </table>
         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem;">
           Pulse «Vincular», elija al cliente en el recuadro de abajo y vuelva a cargar el mismo Excel: las facturas ya cargadas no se duplican.
-        </div>`;
+        </div>
+        </details>`;
     }
 
     function prepararVinculoPremium(codigo) {
@@ -3388,6 +3409,85 @@
       cargarCodigosPremiumVinculados();
     }
 
+    // ----- Resumen de lo importado, por vendedor -----
+    async function mostrarResumenImportacion(div, resumenVend, t, htmlExtra) {
+      if (!div) return;
+      const nombres = {};
+      try {
+        const { data: us } = await _supabase.from("usuarios").select("usuario, nombre_completo");
+        (us || []).forEach(u => { nombres[(u.usuario || "").trim()] = u.nombre_completo || u.usuario; });
+      } catch (e) { /* si falla se muestra el usuario tal cual */ }
+
+      const grupos = Object.keys(resumenVend).map(k => {
+        const r = resumenVend[k];
+        return {
+          nombre: k === "(sin vendedor)" ? "Sin vendedor asignado" : (nombres[k] || k),
+          facturas: r.facturas, duplicadas: r.duplicadas, bs: r.bs, usd: r.usd,
+          lista: Object.values(r.clientes).sort((a, b) => (b.facturas - a.facturas) || (b.usd - a.usd))
+        };
+      }).sort((a, b) => (b.facturas - a.facturas) || (b.duplicadas - a.duplicadas));
+
+      const caja = (titulo, valor, color) => `
+        <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 0.55rem 0.8rem; background: #fff; min-width: 140px; flex: 1;">
+          <div style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">${titulo}</div>
+          <div style="font-size: 1.15rem; font-weight: 800; color: ${color || "#0f172a"};">${valor}</div>
+        </div>`;
+      const td = 'style="padding: 5px 10px; border-bottom: 1px solid var(--border-color);"';
+      const MAX_CLIENTES = 15;
+
+      const bloques = grupos.map(g => {
+        const visibles = g.lista.slice(0, MAX_CLIENTES);
+        const resto = g.lista.length - visibles.length;
+        return `
+          <details ${grupos.length <= 3 ? "open" : ""} style="border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 0.5rem; background: #fff;">
+            <summary style="cursor: pointer; padding: 0.6rem 0.8rem; display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: baseline;">
+              <strong style="font-size: 0.9rem; min-width: 160px;">${escapeHtml(g.nombre)}</strong>
+              <span style="font-size: 0.8rem; font-weight: 700; color: #15803d;">${g.facturas} factura${g.facturas === 1 ? "" : "s"} nueva${g.facturas === 1 ? "" : "s"}</span>
+              <span style="font-size: 0.8rem;">${g.lista.length} cliente${g.lista.length === 1 ? "" : "s"}</span>
+              <span style="font-size: 0.8rem;">$ ${fmtVE(g.usd)} · Bs. ${fmtVE(g.bs)}</span>
+              ${g.duplicadas ? `<span style="font-size: 0.75rem; color: var(--text-muted);">${g.duplicadas} ya estaba${g.duplicadas === 1 ? "" : "n"} cargada${g.duplicadas === 1 ? "" : "s"}</span>` : ""}
+            </summary>
+            <div style="padding: 0 0.8rem 0.7rem; overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; font-weight: 400;">
+                <thead>
+                  <tr style="text-align: left; background: #f1f5f9;">
+                    <th style="padding: 5px 10px;">Cliente</th>
+                    <th style="padding: 5px 10px;">RIF / Cédula</th>
+                    <th style="padding: 5px 10px; text-align: right;">Facturas nuevas</th>
+                    <th style="padding: 5px 10px; text-align: right;">Monto $</th>
+                    <th style="padding: 5px 10px; text-align: right;">Ya cargadas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${visibles.map(c => `
+                    <tr>
+                      <td ${td}>${escapeHtml(c.nombre)}</td>
+                      <td ${td}>${escapeHtml(c.rif)}</td>
+                      <td ${td} align="right">${c.facturas}</td>
+                      <td ${td} align="right">${fmtVE(c.usd)}</td>
+                      <td ${td} align="right">${c.duplicadas || ""}</td>
+                    </tr>`).join("")}
+                </tbody>
+              </table>
+              ${resto > 0 ? `<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem;">... y ${resto} cliente${resto === 1 ? "" : "s"} más</div>` : ""}
+            </div>
+          </details>`;
+      }).join("");
+
+      div.innerHTML = `
+        <div style="font-size: 0.85rem; font-weight: 800; margin-bottom: 0.5rem;">Resumen de la importación</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.7rem;">
+          ${caja("Facturas nuevas", t.facturasProcesadas, "#15803d")}
+          ${caja("Total cargado", "$ " + fmtVE(t.totalUsdCargado))}
+          ${caja("Total en Bs.", "Bs. " + fmtVE(t.totalBsCargado))}
+          ${caja("Ya estaban cargadas", t.facturasOmitidasDuplicadas)}
+          ${caja("Sin cliente (no cargadas)", t.clientesNoEncontrados, t.clientesNoEncontrados ? "#b45309" : "")}
+          ${t.erroresFactura ? caja("Con error al guardar", t.erroresFactura, "#dc2626") : ""}
+        </div>
+        ${bloques || `<div style="font-size: 0.85rem; color: var(--text-muted);">No se cargaron facturas nuevas en este archivo.</div>`}
+        ${htmlExtra || ""}`;
+    }
+
     async function procesarExcelPremiumSoft() {
       const inputTasa = document.getElementById("tasa-cambio-excel");
       const inputArchivo = document.getElementById("archivo-excel-premium");
@@ -3449,11 +3549,11 @@
           let listaClientes;
           let conPremium = true;   // false si todavía no existe la columna codigo_premium
           try {
-            listaClientes = await leerTodosLosClientes("rif_cedula, nombre, deuda_actual, codigo_premium");
+            listaClientes = await leerTodosLosClientes("rif_cedula, nombre, deuda_actual, codigo_premium, vendedor_email");
           } catch (e) {
             if (String((e && e.message) || e).includes("codigo_premium")) {
               conPremium = false;
-              listaClientes = await leerTodosLosClientes("rif_cedula, nombre, deuda_actual");
+              listaClientes = await leerTodosLosClientes("rif_cedula, nombre, deuda_actual, vendedor_email");
             } else {
               throw e;
             }
@@ -3466,6 +3566,7 @@
             const datos = {
               rif_original: c.rif_cedula,
               nombre: c.nombre,
+              vendedor: (c.vendedor_email || "").trim(),
               deuda_actual: parseFloat(c.deuda_actual || 0)
             };
             mapaClientes[normalizarRifCedula(c.rif_cedula)] = datos;
@@ -3488,6 +3589,15 @@
           let erroresFactura = 0;       // facturas que no se pudieron guardar (no se suman a la deuda)
           let asociadasPorPremium = 0;  // facturas asignadas por el código de Premium vinculado
           const noEncontradosDetalle = {};  // códigos del Excel sin cliente: para poder vincularlos
+          const resumenVend = {};       // resumen de lo importado, agrupado por vendedor del cliente
+          const registroVend = (cli) => {
+            const vk = cli.vendedor || "(sin vendedor)";
+            return resumenVend[vk] || (resumenVend[vk] = { facturas: 0, duplicadas: 0, bs: 0, usd: 0, clientes: {} });
+          };
+          const registroCliente = (rv, cli) => rv.clientes[cli.rif_original] ||
+            (rv.clientes[cli.rif_original] = { rif: cli.rif_original, nombre: cli.nombre || "", facturas: 0, duplicadas: 0, usd: 0 });
+          let totalBsCargado = 0;
+          let totalUsdCargado = 0;
 
           for (const row of rows) {
             const codCliente = row["CODCLIENTE"];
@@ -3569,6 +3679,9 @@
                 if (!errFecha) fechasCompletadas++;
               }
               facturasOmitidasDuplicadas++;
+              const rvDup = registroVend(clienteMatch);
+              rvDup.duplicadas++;
+              registroCliente(rvDup, clienteMatch).duplicadas++;
               continue;
             }
 
@@ -3601,6 +3714,15 @@
 
             clienteMatch.deuda_actual = nuevoSaldo;
             facturasProcesadas++;
+            totalBsCargado += totalNetoBs;
+            totalUsdCargado += montoUSD;
+            const rvNuevo = registroVend(clienteMatch);
+            rvNuevo.facturas++;
+            rvNuevo.bs += totalNetoBs;
+            rvNuevo.usd += montoUSD;
+            const crNuevo = registroCliente(rvNuevo, clienteMatch);
+            crNuevo.facturas++;
+            crNuevo.usd += montoUSD;
           }
 
           statusDiv.className = "mt-2 text-xs font-bold text-green-600";
@@ -3608,12 +3730,14 @@
           invalidarCacheClientes();
           mostrarCodigosNoEncontrados(Object.values(noEncontradosDetalle));
           const filasAsociadas = Object.values(detallePorNumero);
-          if (detalleDiv && filasAsociadas.length > 0) {
+          let htmlAsociadas = "";
+          if (filasAsociadas.length > 0) {
             const tdEstilo = 'style="padding: 6px 10px; border-bottom: 1px solid var(--border-color);"';
-            detalleDiv.innerHTML = `
-              <div style="font-size: 0.8rem; font-weight: 700; margin-bottom: 0.4rem;">
-                Clientes asociados por número (la letra del RIF era distinta):
-              </div>
+            htmlAsociadas = `
+              <details style="margin-top: 0.75rem;">
+              <summary style="cursor: pointer; font-size: 0.8rem; font-weight: 700;">
+                Ver clientes asociados por número (${filasAsociadas.length}): la letra del RIF era distinta
+              </summary>
               <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; font-weight: 400;">
                 <thead>
                   <tr style="text-align: left; background: #f1f5f9;">
@@ -3634,10 +3758,15 @@
                   `).join("")}
                 </tbody>
               </table>
+              </details>
             `;
           }
+          await mostrarResumenImportacion(detalleDiv, resumenVend, {
+            facturasProcesadas, facturasOmitidasDuplicadas, clientesNoEncontrados,
+            erroresFactura, totalBsCargado, totalUsdCargado
+          }, htmlAsociadas);
 
-          alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas:${facturasOmitidasDuplicadas}\nClientes no encontrados: ${clientesNoEncontrados}${clientesNoEncontrados ? " (la lista aparece debajo del botón de importar)" : ""}${asociadasPorPremium ? `\nAsociadas por código de Premium vinculado: ${asociadasPorPremium}` : ""}${!conPremium ? "\nAviso: falta la columna codigo_premium en clientes; no se usaron códigos de Premium vinculados." : ""}${asociadasPorNumero ? `\nAsociadas por número (letra del RIF distinta): ${asociadasPorNumero}` : ""}${clientesAmbiguos ? `\nSin cargar, número repetido en varios clientes: ${clientesAmbiguos}` : ""}${fechasCompletadas ? `\nFechas de emisión completadas en facturas ya cargadas: ${fechasCompletadas}` : ""}${facturasSinFecha ? `\nFacturas nuevas sin fecha de emisión válida en el Excel: ${facturasSinFecha}` : ""}${erroresFactura ? `\nFacturas con error al guardar (no se sumaron a la deuda): ${erroresFactura}` : ""}\nLote asignado:${loteImportacion}`);
+          alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas:${facturasOmitidasDuplicadas}\nClientes no encontrados: ${clientesNoEncontrados}${clientesNoEncontrados ? " (puede verlos en «Ver clientes no encontrados», debajo del resumen)" : ""}${asociadasPorPremium ? `\nAsociadas por código de Premium vinculado: ${asociadasPorPremium}` : ""}${!conPremium ? "\nAviso: falta la columna codigo_premium en clientes; no se usaron códigos de Premium vinculados." : ""}${asociadasPorNumero ? `\nAsociadas por número (letra del RIF distinta): ${asociadasPorNumero}` : ""}${clientesAmbiguos ? `\nSin cargar, número repetido en varios clientes: ${clientesAmbiguos}` : ""}${fechasCompletadas ? `\nFechas de emisión completadas en facturas ya cargadas: ${fechasCompletadas}` : ""}${facturasSinFecha ? `\nFacturas nuevas sin fecha de emisión válida en el Excel: ${facturasSinFecha}` : ""}${erroresFactura ? `\nFacturas con error al guardar (no se sumaron a la deuda): ${erroresFactura}` : ""}\nLote asignado:${loteImportacion}`);
 
         } catch (err) {
           console.error("Error procesando Excel:", err);
@@ -3739,15 +3868,17 @@
       return { desde, hasta, estado, desdeISO, hastaISO, hay: !!(desde || hasta || estado) };
     }
 
-    function mostrarInfoFiltroHistorial(pref, f, cantidad) {
+    function mostrarInfoFiltroHistorial(pref, f, cantidad, limite) {
       const titulo = document.getElementById(pref + "-titulo-extra");
       const info = document.getElementById(pref + "-info");
-      if (titulo) titulo.textContent = f.hay ? "(filtrado)" : "(últimos 5)";
+      if (titulo) titulo.textContent = f.hay ? "(filtrado)" : "(últimos " + (limite || 5) + ")";
       if (info) info.textContent = f.hay ? `${cantidad} registro(s) encontrados` : "";
     }
 
     function limpiarFiltroHistorialPagos() {
       ["hp-desde", "hp-hasta", "hp-estado"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+      const campo = document.getElementById("hp-campo-fecha");
+      if (campo) campo.value = "created_at";
       cargarHistorialPagos();
     }
 
@@ -3761,12 +3892,34 @@
       if (!tbody) return;
 
       const f = leerFiltroHistorial("hp");
-      let consulta = _supabase.from("pagos_registrados").select("*").order("created_at", { ascending: false });
-      if (f.desdeISO) consulta = consulta.gte("created_at", f.desdeISO);
-      if (f.hastaISO) consulta = consulta.lt("created_at", f.hastaISO);
-      if (f.estado) consulta = consulta.eq("estado", f.estado);
-      const { data: pagos, error } = await consulta.limit(f.hay ? 1000 : 5);
-      mostrarInfoFiltroHistorial("hp", f, pagos ? pagos.length : 0);
+      const campoFecha = (document.getElementById("hp-campo-fecha") || {}).value || "created_at";
+      const limiteSel = parseInt((document.getElementById("hp-limite") || {}).value, 10) || 20;
+
+      const armarConsulta = () => {
+        let c = _supabase.from("pagos_registrados").select("*")
+          .order(campoFecha, { ascending: false, nullsFirst: false })
+          .order("id", { ascending: false });
+        if (f.desdeISO) c = c.gte(campoFecha, f.desdeISO);
+        if (f.hastaISO) c = c.lt(campoFecha, f.hastaISO);
+        if (f.estado) c = c.eq("estado", f.estado);
+        return c;
+      };
+
+      let pagos = [], error = null;
+      if (f.hay) {
+        // Con filtro: trae TODOS los registros que coincidan (páginas de 1000)
+        for (let desde = 0; ; desde += 1000) {
+          const r = await armarConsulta().range(desde, desde + 999);
+          if (r.error) { error = r.error; break; }
+          pagos = pagos.concat(r.data || []);
+          if (!r.data || r.data.length < 1000) break;
+        }
+      } else {
+        const r = await armarConsulta().limit(limiteSel);
+        pagos = r.data || [];
+        error = r.error;
+      }
+      mostrarInfoFiltroHistorial("hp", f, pagos.length, limiteSel);
 
       if (error) {
         tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: #dc2626; padding: 1.5rem;">No se pudo cargar el historial: ${escapeHtml(error.message)}</td></tr>`;
@@ -3789,7 +3942,7 @@
             ${p.comprobante_url ? `<a href="${escapeHtml(p.comprobante_url)}" target="_blank" style="color:var(--accent-color); font-weight:bold; font-size:0.8rem;"><i class="fa-solid fa-file-arrow-down"></i> Ver</a>` : '-'}
           </td>
           <td>${escapeHtml(p.fecha_pago)}</td>
-          <td>${badgeEstado(p.estado)}</td>
+          <td>${badgeEstado(p.estado)}${p.estado === "aprobado" && p.fecha_aprobacion ? `<br><span style="font-size:0.72rem; color:var(--text-muted);">Aprob.: ${new Date(p.fecha_aprobacion).toLocaleString()}</span>` : ""}</td>
         </tr>
       `).join("");
     }
