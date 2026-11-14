@@ -2889,40 +2889,77 @@
       if (btnVolver) btnVolver.style.display = "none";
     }
 
+    // Verificación de sesión: confirma que el usuario sigue activo y con los mismos permisos.
+    // Cada 5 minutos, solo con la pestaña visible, y al volver a la pestaña si pasó ese tiempo.
+    const INTERVALO_VERIFICACION_SESION_MS = 5 * 60 * 1000;
+    let ultimaVerificacionSesion = 0;
+    let verificandoSesion = false;
+    let escuchaVisibilidadSesion = false;
+
+    async function verificarEstadoSesion() {
+      if (!currentUser || !currentUser.id) return;
+      if (verificandoSesion) return;
+      verificandoSesion = true;
+
+      try {
+        const { data, error } = await _supabase
+          .from("usuarios")
+          .select("*")
+          .eq("id", currentUser.id)
+          .single();
+
+        if (error) {
+          // PGRST116 = la consulta no devolvió ninguna fila: el usuario ya no existe
+          if (error.code === "PGRST116") {
+            forzarCierreSesionPorBloqueo("Su acceso a la plataforma ha sido suspendido por el Administrador.");
+          }
+          // Cualquier otro error (internet, servidor) NO cierra la sesión: se reintenta en la siguiente verificación
+          return;
+        }
+
+        ultimaVerificacionSesion = Date.now();
+
+        if (!data || data.activo === false) {
+          forzarCierreSesionPorBloqueo("Su acceso a la plataforma ha sido suspendido por el Administrador.");
+          return;
+        }
+
+        const rolNuevo = data.rol || "";
+        const permNuevo = JSON.stringify(data.permisos || {});
+        const rolActual = currentUser.rol || "";
+        const permActual = JSON.stringify(currentUser.permisos || {});
+        if (rolNuevo !== rolActual || permNuevo !== permActual) {
+          currentUser.rol = data.rol;
+          currentUser.permisos = data.permisos;
+          localStorage.setItem("rami_session", JSON.stringify(currentUser));
+          clearInterval(sessionCheckInterval);
+          alert("El Administrador actualizó sus permisos. La página se recargará para aplicarlos.");
+          location.reload();
+        }
+      } catch (e) {
+        console.error("Error al verificar estado de sesión", e);
+      } finally {
+        verificandoSesion = false;
+      }
+    }
+
     function iniciarMonitoreoAcceso() {
       if (sessionCheckInterval) clearInterval(sessionCheckInterval);
+      ultimaVerificacionSesion = Date.now();
 
-      sessionCheckInterval = setInterval(async () => {
-        if (!currentUser || !currentUser.id) return;
+      sessionCheckInterval = setInterval(() => {
+        if (document.hidden) return; // pestaña oculta o pantalla bloqueada: no consulta
+        verificarEstadoSesion();
+      }, INTERVALO_VERIFICACION_SESION_MS);
 
-        try {
-          const { data, error } = await _supabase
-            .from("usuarios")
-            .select("*")
-            .eq("id", currentUser.id)
-            .single();
-
-          if (error || !data || data.activo === false) {
-            forzarCierreSesionPorBloqueo("Su acceso a la plataforma ha sido suspendido por el Administrador.");
-            return;
-          }
-
-          const rolNuevo = data.rol || "";
-          const permNuevo = JSON.stringify(data.permisos || {});
-          const rolActual = currentUser.rol || "";
-          const permActual = JSON.stringify(currentUser.permisos || {});
-          if (rolNuevo !== rolActual || permNuevo !== permActual) {
-            currentUser.rol = data.rol;
-            currentUser.permisos = data.permisos;
-            localStorage.setItem("rami_session", JSON.stringify(currentUser));
-            clearInterval(sessionCheckInterval);
-            alert("El Administrador actualizó sus permisos. La página se recargará para aplicarlos.");
-            location.reload();
-          }
-        } catch (e) {
-          console.error("Error al verificar estado de sesión", e);
-        }
-      }, 60000);
+      // Al volver a la pestaña, si pasó el tiempo, verifica de inmediato
+      if (!escuchaVisibilidadSesion) {
+        escuchaVisibilidadSesion = true;
+        document.addEventListener("visibilitychange", () => {
+          if (document.hidden || !currentUser || !currentUser.id) return;
+          if (Date.now() - ultimaVerificacionSesion >= INTERVALO_VERIFICACION_SESION_MS) verificarEstadoSesion();
+        });
+      }
     }
 
     function forzarCierreSesionPorBloqueo(mensaje) {
@@ -3537,6 +3574,231 @@
         ${htmlExtra || ""}`;
     }
 
+    // Marca sospechas en las facturas NUEVAS de la importación (solo lectura, no guarda nada).
+    //  - "repetida": mismo cliente, mismo monto (USD) y misma fecha de emisión, con números de factura distintos.
+    //  - "igualDeuda": las facturas nuevas del cliente suman lo que ya debía, o una sola iguala su deuda
+    //    (típico de un consolidado ya cargado + las facturas reales).
+    function evaluarAlertasImportacion(nuevos) {
+      nuevos.forEach(c => { c.alertas = []; c.sugerirExcluir = false; });
+      const porCliente = {};
+      nuevos.forEach(c => {
+        const k = c.clienteMatch.rif_original;
+        (porCliente[k] = porCliente[k] || []).push(c);
+      });
+      Object.values(porCliente).forEach(lista => {
+        const cli = lista[0].clienteMatch;
+
+        const grupos = {};
+        lista.forEach(c => {
+          const k = c.montoUSD.toFixed(2) + "|" + (c.fechaEmision || "sin-fecha");
+          (grupos[k] = grupos[k] || []).push(c);
+        });
+        Object.values(grupos).forEach(g => {
+          if (g.length < 2) return;
+          g.forEach((c, i) => {
+            c.alertas.push("repetida");
+            if (i > 0) c.sugerirExcluir = true;   // se sugiere cargar solo la primera de cada grupo
+          });
+        });
+
+        const deuda = parseFloat(cli.deuda_actual || 0);
+        if (deuda > 0.01) {
+          const suma = lista.reduce((t, c) => t + c.montoUSD, 0);
+          const marcadas = Math.abs(suma - deuda) <= 0.05
+            ? lista
+            : lista.filter(c => Math.abs(c.montoUSD - deuda) <= 0.05);
+          marcadas.forEach(c => {
+            if (!c.alertas.includes("igualDeuda")) c.alertas.push("igualDeuda");
+            c.sugerirExcluir = true;
+          });
+        }
+      });
+    }
+
+    // Vista previa: lista TODAS las facturas nuevas que se van a guardar. Las sospechosas van arriba, aparte.
+    // Devuelve un Set con los ids elegidos, o null si se cancela (en ese caso no se guarda nada).
+    async function mostrarVistaPreviaImportacion(info) {
+      const nombres = {};
+      try {
+        const { data: us } = await _supabase.from("usuarios").select("usuario, nombre_completo");
+        (us || []).forEach(u => { nombres[(u.usuario || "").trim()] = u.nombre_completo || u.usuario; });
+      } catch (e) { /* si falla se muestra el usuario tal cual */ }
+      const nombreVend = k => (k ? (nombres[k] || k) : "Sin vendedor asignado");
+      const esc = escapeHtml;
+      const fechaTxt = f => (f ? f.split("-").reverse().join("/") : "—");
+
+      const porId = {};
+      info.nuevos.forEach(c => { porId[c.id] = c; });
+      const revision = info.nuevos.filter(c => c.alertas.length);
+      const limpias = info.nuevos.filter(c => !c.alertas.length);
+
+      const td = 'style="padding: 5px 8px; border-bottom: 1px solid var(--border-color);"';
+      const th = 'style="padding: 5px 8px; text-align: left; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;"';
+      const thR = 'style="padding: 5px 8px; text-align: right; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;"';
+      const encabezado = (conCliente) => `
+        <thead><tr style="background: #f1f5f9;">
+          <th ${th}></th>${conCliente ? `<th ${th}>Cliente</th>` : ""}<th ${th}>Factura</th><th ${th}>Emisión</th>
+          <th ${thR}>Monto Bs</th><th ${thR}>Monto USD</th>
+        </tr></thead>`;
+      const fila = (c, conCliente) => `
+        <tr class="vp-fila" data-texto="${esc(((c.clienteMatch.nombre || "") + " " + c.clienteMatch.rif_original + " " + c.docFormateado).toLowerCase())}">
+          <td ${td}><input type="checkbox" class="vp-chk" data-id="${c.id}" ${c.sugerirExcluir ? "" : "checked"}></td>
+          ${conCliente ? `<td ${td}>${esc(c.clienteMatch.nombre || "")}<div style="font-size: 0.7rem; color: var(--text-muted);">${esc(c.clienteMatch.rif_original)}</div></td>` : ""}
+          <td ${td}><strong>${esc(c.docFormateado)}</strong></td>
+          <td ${td}>${fechaTxt(c.fechaEmision)}</td>
+          <td ${td} align="right">Bs ${fmtVE(c.totalNetoBs)}</td>
+          <td ${td} align="right"><strong>$${fmtVE(c.montoUSD)}</strong></td>
+        </tr>`;
+
+      // --- Sección 1: requieren revisión (agrupadas por cliente) ---
+      const revCli = {};
+      revision.forEach(c => {
+        const k = c.clienteMatch.rif_original;
+        (revCli[k] = revCli[k] || []).push(c);
+      });
+      const bloquesRev = Object.values(revCli).map(lista => {
+        const cli = lista[0].clienteMatch;
+        const motivos = [];
+        if (lista.some(c => c.alertas.includes("repetida"))) {
+          motivos.push("Hay facturas con el mismo monto y la misma fecha de emisión para este cliente. Se sugiere cargar solo la primera de cada grupo.");
+        }
+        if (lista.some(c => c.alertas.includes("igualDeuda"))) {
+          motivos.push(`Hay facturas que coinciden con la deuda que el cliente ya tiene ($${fmtVE(parseFloat(cli.deuda_actual || 0))}): podrían estar ya incluidas en un consolidado cargado antes. Vienen sin marcar; márquelas solo si sí deben cargarse.`);
+        }
+        return `
+          <div class="vp-rev" style="border: 2px solid #f59e0b; background: #fffbeb; border-radius: 10px; padding: 0.6rem 0.8rem; margin-bottom: 0.6rem; overflow-x: auto;">
+            <div style="font-size: 0.9rem;"><strong>${esc(cli.nombre || "")}</strong> · ${esc(cli.rif_original)} · Vendedor: ${esc(nombreVend(cli.vendedor))} · Deuda actual: $${fmtVE(parseFloat(cli.deuda_actual || 0))}</div>
+            ${motivos.map(m => `<div style="font-size: 0.78rem; color: #b45309; font-weight: 600; margin-top: 0.25rem;">⚠ ${esc(m)}</div>`).join("")}
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 0.4rem; background: #fff;">
+              ${encabezado(false)}<tbody>${lista.map(c => fila(c, false)).join("")}</tbody>
+            </table>
+          </div>`;
+      }).join("");
+
+      // --- Sección 2: sin problemas (agrupadas por vendedor, desplegables) ---
+      const limpVend = {};
+      limpias.forEach(c => {
+        const v = c.clienteMatch.vendedor || "";
+        (limpVend[v] = limpVend[v] || []).push(c);
+      });
+      const bloquesVend = Object.keys(limpVend).sort((a, b) => limpVend[b].length - limpVend[a].length).map(v => {
+        const lista = limpVend[v];
+        const totalUsd = lista.reduce((t, c) => t + c.montoUSD, 0);
+        const accion = 'style="font-size: 0.72rem; font-weight: 700; color: #2563eb; cursor: pointer; text-decoration: underline;"';
+        return `
+          <details class="vp-vend" style="border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 0.5rem; background: #fff;">
+            <summary style="cursor: pointer; padding: 0.55rem 0.8rem; display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; align-items: baseline;">
+              <strong>${esc(nombreVend(v))}</strong>
+              <span style="font-size: 0.78rem; color: var(--text-muted);">${lista.length} factura${lista.length === 1 ? "" : "s"} · $${fmtVE(totalUsd)}</span>
+              <span class="vp-accion" data-accion="marcar" ${accion}>Marcar todas</span>
+              <span class="vp-accion" data-accion="desmarcar" ${accion}>Desmarcar todas</span>
+            </summary>
+            <div style="overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+                ${encabezado(true)}<tbody>${lista.map(c => fila(c, true)).join("")}</tbody>
+              </table>
+            </div>
+          </details>`;
+      }).join("");
+
+      const caja = (titulo, valor, color) => `
+        <div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 0.45rem 0.8rem; background: #fff; flex: 1; min-width: 130px;">
+          <div style="font-size: 0.66rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">${titulo}</div>
+          <div style="font-size: 1.05rem; font-weight: 800; color: ${color || "#0f172a"};">${valor}</div>
+        </div>`;
+      const nClientesRev = Object.keys(revCli).length;
+
+      const modal = document.createElement("div");
+      modal.className = "modal-overlay";
+      modal.style.display = "flex";
+      modal.innerHTML = `
+        <div class="modal-content" style="max-width: 1000px; height: 90vh;">
+          <div class="modal-header">
+            <div>
+              <h3 style="font-size: 1.05rem;">Revisión antes de cargar</h3>
+              <div style="font-size: 0.78rem; color: var(--text-muted);">Marque las facturas que desea subir. Las desmarcadas no se guardan. Nada se guarda hasta que pulse "Cargar".</div>
+            </div>
+          </div>
+          <div class="modal-body" style="flex: 1;">
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+              ${caja("Facturas nuevas", info.nuevos.length)}
+              ${caja("Requieren revisión", revision.length, revision.length ? "#b45309" : "#0f172a")}
+              ${caja("Ya cargadas (se omiten)", info.yaCargadas)}
+              ${caja("Clientes no encontrados", info.clientesNoEncontrados, info.clientesNoEncontrados ? "#b91c1c" : "#0f172a")}
+              ${caja("Tasa", fmtVE(info.tasa))}
+            </div>
+            <input type="text" id="vp-buscar" placeholder="Buscar por cliente, RIF o número de factura..." style="width: 100%; padding: 0.5rem 0.7rem; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 0.75rem; font-size: 0.85rem;">
+            ${revision.length ? `
+              <h4 style="font-size: 0.9rem; color: #b45309; margin-bottom: 0.4rem;">⚠ Requieren revisión (${nClientesRev} cliente${nClientesRev === 1 ? "" : "s"})</h4>
+              ${bloquesRev}` : ""}
+            ${limpias.length ? `
+              <h4 style="font-size: 0.9rem; margin: 0.6rem 0 0.4rem;">Sin problemas (${limpias.length} factura${limpias.length === 1 ? "" : "s"})</h4>
+              ${bloquesVend}` : ""}
+          </div>
+          <div class="modal-footer">
+            <div id="vp-total" style="font-size: 0.85rem;"></div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button type="button" id="vp-cancelar" style="padding: 0.55rem 1rem; border: 1px solid var(--border-color); border-radius: 8px; background: #fff; font-weight: 700; cursor: pointer;">Cancelar</button>
+              <button type="button" id="vp-cargar" class="admin-btn-primary"></button>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+
+      const btnCargar = modal.querySelector("#vp-cargar");
+      const btnCancelar = modal.querySelector("#vp-cancelar");
+      const totalDiv = modal.querySelector("#vp-total");
+
+      const actualizar = () => {
+        let n = 0, usd = 0;
+        modal.querySelectorAll(".vp-chk").forEach(ch => {
+          if (ch.checked) { n++; usd += porId[ch.dataset.id].montoUSD; }
+        });
+        const omitidas = info.nuevos.length - n;
+        totalDiv.innerHTML = `Se cargarán <strong>${n}</strong> · $${fmtVE(usd)} &nbsp;|&nbsp; Se omitirán <strong style="color: ${omitidas ? "#b45309" : "inherit"};">${omitidas}</strong>`;
+        btnCargar.textContent = n ? `Cargar ${n} factura${n === 1 ? "" : "s"}` : "Nada que cargar";
+        btnCargar.disabled = n === 0;
+      };
+
+      return new Promise(resolve => {
+        modal.addEventListener("change", e => { if (e.target.classList.contains("vp-chk")) actualizar(); });
+
+        modal.addEventListener("click", e => {
+          const a = e.target.closest(".vp-accion");
+          if (!a) return;
+          e.preventDefault();
+          const marcar = a.dataset.accion === "marcar";
+          const caja = a.closest("details");
+          caja.querySelectorAll(".vp-fila").forEach(fila => {
+            if (fila.style.display === "none") return;   // solo las visibles (respeta el buscador)
+            fila.querySelector(".vp-chk").checked = marcar;
+          });
+          actualizar();
+        });
+
+        modal.querySelector("#vp-buscar").addEventListener("input", e => {
+          const t = e.target.value.trim().toLowerCase();
+          modal.querySelectorAll(".vp-fila").forEach(f => {
+            f.style.display = (!t || (f.dataset.texto || "").includes(t)) ? "" : "none";
+          });
+          modal.querySelectorAll(".vp-vend, .vp-rev").forEach(g => {
+            const visibles = [...g.querySelectorAll(".vp-fila")].filter(f => f.style.display !== "none").length;
+            g.style.display = visibles ? "" : "none";
+            if (t && visibles && g.tagName === "DETAILS") g.open = true;
+          });
+        });
+
+        btnCancelar.onclick = () => { modal.remove(); resolve(null); };
+        btnCargar.onclick = () => {
+          const elegidos = new Set();
+          modal.querySelectorAll(".vp-chk").forEach(ch => { if (ch.checked) elegidos.add(Number(ch.dataset.id)); });
+          modal.remove();
+          resolve(elegidos);
+        };
+        actualizar();
+      });
+    }
+
     async function procesarExcelPremiumSoft() {
       const inputTasa = document.getElementById("tasa-cambio-excel");
       const inputArchivo = document.getElementById("archivo-excel-premium");
@@ -3648,6 +3910,8 @@
           let totalBsCargado = 0;
           let totalUsdCargado = 0;
 
+          // ===== FASE 1: lectura y emparejamiento (no guarda nada) =====
+          const candidatos = [];
           for (const row of rows) {
             const codCliente = row["CODCLIENTE"];
             const numDoc = row["DOCUMENTO"];
@@ -3709,6 +3973,63 @@
 
             const docFormateado = formatearDocumentoPremiumSoft(numDoc);
             const fechaEmision = fechaISODesdeCeldaExcel(valorColumnaExcel(row, ["EMISION"]));
+            const montoUSDPrevio = parseFloat((totalNetoBs / tasa).toFixed(2));
+
+            candidatos.push({
+              id: candidatos.length,
+              clienteMatch, docFormateado, fechaEmision, totalNetoBs,
+              montoUSD: montoUSDPrevio,
+              yaCargada: false, alertas: [], sugerirExcluir: false
+            });
+          }
+
+          // ¿Cuáles facturas ya están en la base? Se consulta por lotes (no una consulta por factura)
+          const claveDocImp = (rif, doc) => rif + "||" + doc;
+          const yaEnBD = new Set();
+          const docsUnicos = [...new Set(candidatos.map(c => c.docFormateado))];
+          for (let i = 0; i < docsUnicos.length; i += 100) {
+            const { data: exLote, error: errLote } = await _supabase
+              .from("historial_cuentas")
+              .select("rif_cedula, referencia_doc")
+              .in("referencia_doc", docsUnicos.slice(i, i + 100));
+            if (errLote) throw errLote;   // si no se puede comprobar, no se sigue
+            (exLote || []).forEach(f => yaEnBD.add(claveDocImp(f.rif_cedula, f.referencia_doc)));
+          }
+          const vistasEnArchivo = new Set();
+          candidatos.forEach(c => {
+            const k = claveDocImp(c.clienteMatch.rif_original, c.docFormateado);
+            // Ya cargada antes, o repetida en el mismo archivo: no es una factura nueva
+            if (yaEnBD.has(k) || vistasEnArchivo.has(k)) c.yaCargada = true;
+            else vistasEnArchivo.add(k);
+          });
+
+          // ===== VISTA PREVIA: nada se ha guardado hasta aquí =====
+          const nuevosCand = candidatos.filter(c => !c.yaCargada);
+          evaluarAlertasImportacion(nuevosCand);
+          let seleccion = null;            // null = procesar todo (no hay facturas nuevas que elegir)
+          const omitidasUsuario = [];
+          if (nuevosCand.length > 0) {
+            statusDiv.innerText = "Revise la vista previa y confirme la carga...";
+            seleccion = await mostrarVistaPreviaImportacion({
+              nuevos: nuevosCand,
+              yaCargadas: candidatos.length - nuevosCand.length,
+              clientesNoEncontrados,
+              tasa
+            });
+            if (!seleccion) {
+              statusDiv.className = "mt-2 text-xs font-bold text-blue-600";
+              statusDiv.innerText = "Importación cancelada. No se guardó ninguna factura.";
+              return;
+            }
+          }
+
+          // ===== FASE 2: guardado (misma lógica de siempre, solo para lo elegido) =====
+          for (const c of candidatos) {
+            if (!c.yaCargada && seleccion && !seleccion.has(c.id)) { omitidasUsuario.push(c); continue; }
+            const clienteMatch = c.clienteMatch;
+            const totalNetoBs = c.totalNetoBs;
+            const docFormateado = c.docFormateado;
+            const fechaEmision = c.fechaEmision;
 
             const { data: existeDoc, error: errDoc } = await _supabase
               .from("historial_cuentas")
@@ -3810,10 +4131,39 @@
               </details>
             `;
           }
+          let htmlOmitidas = "";
+          if (omitidasUsuario.length > 0) {
+            const tdO = 'style="padding: 6px 10px; border-bottom: 1px solid var(--border-color);"';
+            htmlOmitidas = `
+              <details open style="margin-top: 0.75rem;">
+              <summary style="cursor: pointer; font-size: 0.8rem; font-weight: 700; color: #b45309;">
+                Facturas que usted dejó fuera en la revisión (${omitidasUsuario.length}): NO se guardaron
+              </summary>
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; font-weight: 400;">
+                <thead>
+                  <tr style="text-align: left; background: #f1f5f9;">
+                    <th style="padding: 6px 10px;">Cliente</th>
+                    <th style="padding: 6px 10px;">Factura</th>
+                    <th style="padding: 6px 10px; text-align: right;">Monto USD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${omitidasUsuario.map(o => `
+                    <tr>
+                      <td ${tdO}>${escapeHtml(o.clienteMatch.nombre || "")} (${escapeHtml(o.clienteMatch.rif_original)})</td>
+                      <td ${tdO}>${escapeHtml(o.docFormateado)}</td>
+                      <td ${tdO} align="right">$${fmtVE(o.montoUSD)}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+              </details>
+            `;
+          }
           await mostrarResumenImportacion(detalleDiv, resumenVend, {
             facturasProcesadas, facturasOmitidasDuplicadas, clientesNoEncontrados,
             erroresFactura, totalBsCargado, totalUsdCargado
-          }, htmlAsociadas);
+          }, htmlAsociadas + htmlOmitidas);
 
           alert(`Importación completada.\n\nFacturas Nuevas: ${facturasProcesadas}\nDuplicadas Omitidas:${facturasOmitidasDuplicadas}\nClientes no encontrados: ${clientesNoEncontrados}${clientesNoEncontrados ? " (puede verlos en «Ver clientes no encontrados», debajo del resumen)" : ""}${asociadasPorPremium ? `\nAsociadas por código de Premium vinculado: ${asociadasPorPremium}` : ""}${!conPremium ? "\nAviso: falta la columna codigo_premium en clientes; no se usaron códigos de Premium vinculados." : ""}${asociadasPorNumero ? `\nAsociadas por número (letra del RIF distinta): ${asociadasPorNumero}` : ""}${clientesAmbiguos ? `\nSin cargar, número repetido en varios clientes: ${clientesAmbiguos}` : ""}${fechasCompletadas ? `\nFechas de emisión completadas en facturas ya cargadas: ${fechasCompletadas}` : ""}${facturasSinFecha ? `\nFacturas nuevas sin fecha de emisión válida en el Excel: ${facturasSinFecha}` : ""}${erroresFactura ? `\nFacturas con error al guardar (no se sumaron a la deuda): ${erroresFactura}` : ""}\nLote asignado:${loteImportacion}`);
 
