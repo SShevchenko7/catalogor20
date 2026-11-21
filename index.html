@@ -1188,6 +1188,9 @@
               <button onclick="procesarExcelPremiumSoft()" class="admin-btn-primary">
                 <i class="fa-solid fa-cloud-arrow-up"></i> Procesar e Importar
               </button>
+              <button onclick="abrirDeshacerImportacion()" style="margin-left: 0.5rem; padding: 0.55rem 1rem; border: 1px solid #b91c1c; color: #b91c1c; background: #fff; border-radius: 8px; font-weight: 700; cursor: pointer;">
+                <i class="fa-solid fa-rotate-left"></i> Deshacer una importación
+              </button>
             </div>
           </div>
           <div id="status-importacion-excel" class="mt-2 text-xs font-bold"></div>
@@ -3797,6 +3800,253 @@
         };
         actualizar();
       });
+    }
+
+    /* =========================================================
+       DESHACER IMPORTACIÓN (por lote, eligiendo las facturas)
+       Requiere la tabla importaciones_deshechas (archivo SQL).
+    ========================================================= */
+    const DH_TOL = 0.02;
+    let dh = {};
+    const dhEsc = v => escapeHtml(String(v == null ? "" : v));
+    const dhN = v => parseFloat(v || 0);
+    const dhFirmado = r => (r.signo === "+" ? 1 : -1) * dhN(r.monto);
+    const dhR2 = n => parseFloat(n.toFixed(2));
+
+    async function dhPaginar(armar, maxPaginas) {
+      let todo = [];
+      for (let p = 0; p < (maxPaginas || 50); p++) {
+        const { data, error } = await armar().range(p * 1000, p * 1000 + 999);
+        if (error) throw error;
+        todo = todo.concat(data || []);
+        if (!data || data.length < 1000) break;
+      }
+      return todo;
+    }
+    function dhFechaLote(id) {
+      const m = /^LOTE_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(id || "");
+      return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])).toLocaleString() : "—";
+    }
+    function dhTasa(obs) {
+      const m = /Tasa:\s*([0-9.,]+)/.exec(obs || "");
+      if (!m) return "no registrada";
+      const n = Number(m[1].replace(",", "."));
+      return isFinite(n) ? fmtVE(n) : m[1];
+    }
+    function dhPantalla(titulo, sub, cuerpo, pie) {
+      let m = document.getElementById("dh-modal");
+      if (!m) {
+        m = document.createElement("div");
+        m.id = "dh-modal"; m.className = "modal-overlay"; m.style.display = "flex";
+        m.innerHTML = `<div class="modal-content" style="max-width: 1000px; height: 90vh;">
+          <div class="modal-header"><div><h3 id="dh-t" style="font-size: 1.05rem;"></h3><div id="dh-s" style="font-size: 0.78rem; color: var(--text-muted);"></div></div></div>
+          <div class="modal-body" id="dh-c" style="flex: 1;"></div><div class="modal-footer" id="dh-p"></div></div>`;
+        document.body.appendChild(m);
+      }
+      m.querySelector("#dh-t").textContent = titulo;
+      m.querySelector("#dh-s").textContent = sub || "";
+      m.querySelector("#dh-c").innerHTML = cuerpo;
+      m.querySelector("#dh-p").innerHTML = pie;
+    }
+    function dhCerrar() { const m = document.getElementById("dh-modal"); if (m) m.remove(); }
+    const dhBtn = (txt, fn, cls, dis) => `<button type="button" ${dis ? "disabled" : ""} onclick="${fn}" class="${cls || ""}" style="padding: 0.55rem 1rem; border-radius: 8px; font-weight: 700; cursor: pointer; ${cls ? "" : "border: 1px solid var(--border-color); background: #fff;"}">${txt}</button>`;
+
+    async function abrirDeshacerImportacion() {
+      if (!esAdminGeneral(currentUser)) { alert("Solo el administrador general puede deshacer importaciones."); return; }
+      try {
+        const t = await _supabase.from("importaciones_deshechas").select("id").limit(1);
+        if (t.error) {
+          alert("Falta crear la tabla de respaldo (importaciones_deshechas) en Supabase. Ejecute primero el archivo SQL.\n\nNo se modificó nada.");
+          return;
+        }
+        dhPantalla("Deshacer una importación", "Cargando lotes...", "", "");
+        const filas = await dhPaginar(() => _supabase.from("historial_cuentas")
+          .select("lote_importacion, monto, rif_cedula").eq("tipo_movimiento", "FACTURA")
+          .not("lote_importacion", "is", null)
+          .order("lote_importacion", { ascending: false }).order("id", { ascending: false }), 5);
+        const lotes = {}, orden = [];
+        filas.forEach(f => {
+          if (!lotes[f.lote_importacion]) { lotes[f.lote_importacion] = { id: f.lote_importacion, n: 0, usd: 0, rifs: new Set() }; orden.push(f.lote_importacion); }
+          const l = lotes[f.lote_importacion]; l.n++; l.usd += dhN(f.monto); l.rifs.add(f.rif_cedula);
+        });
+        const lista = orden.slice(0, 12);
+        const parcial = filas.length >= 5000 ? lista[lista.length - 1] : null;
+        dhPantalla("Deshacer una importación", "Elija el lote que cargó por error. Aún no se modifica nada.",
+          lista.length ? lista.map(id => { const l = lotes[id]; return `
+            <div onclick="dhVerLote('${id}')" style="cursor: pointer; border: 1px solid var(--border-color); border-radius: 10px; padding: 0.6rem 0.9rem; margin-bottom: 0.5rem; background: #fff;">
+              <strong>${dhEsc(dhFechaLote(id))}</strong> <span style="font-size: 0.75rem; color: var(--text-muted);">· ${dhEsc(id)}</span>
+              <div style="font-size: 0.82rem;">${l.n}${id === parcial ? "+" : ""} facturas · ${l.rifs.size} clientes · $${fmtVE(l.usd)}</div>
+            </div>`; }).join("") : "No hay importaciones con lote registrado.",
+          dhBtn("Cerrar", "dhCerrar()"));
+      } catch (e) { dhCerrar(); alert("No se pudo cargar la lista de lotes: " + (e.message || e)); }
+    }
+
+    async function dhVerLote(loteId) {
+      try {
+        dhPantalla("Lote " + loteId, "Cargando facturas...", "", "");
+        const filas = await dhPaginar(() => _supabase.from("historial_cuentas").select("*")
+          .eq("lote_importacion", loteId).eq("tipo_movimiento", "FACTURA").order("id", { ascending: true }));
+        const rifs = [...new Set(filas.map(f => f.rif_cedula))];
+        const clientes = {};
+        for (let i = 0; i < rifs.length; i += 80) {
+          const { data, error } = await _supabase.from("clientes").select("rif_cedula, nombre, codigo_premium").in("rif_cedula", rifs.slice(i, i + 80));
+          if (error) throw error;
+          (data || []).forEach(c => { clientes[c.rif_cedula] = c; });
+        }
+        dh = { loteId, filas, clientes };
+        const tasas = [...new Set(filas.map(f => dhTasa(f.observacion)))].join(" / ");
+        const total = filas.reduce((t, f) => t + dhN(f.monto), 0);
+        const td = 'style="padding: 5px 8px; border-bottom: 1px solid var(--border-color);"';
+        const caja = (a, b) => `<div style="border: 1px solid var(--border-color); border-radius: 10px; padding: 0.45rem 0.8rem; background: #fff; flex: 1; min-width: 120px;"><div style="font-size: 0.66rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">${a}</div><div style="font-weight: 800;">${b}</div></div>`;
+        dhPantalla("Lote " + loteId, "Marque SOLO las facturas que desea eliminar. Lo que no marque queda intacto.", `
+          <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+            ${caja("Cargado el", dhEsc(dhFechaLote(loteId)))}${caja("Tasa", dhEsc(tasas))}${caja("Facturas", filas.length)}${caja("Clientes", rifs.length)}${caja("Total", "$" + fmtVE(total))}
+          </div>
+          <input type="text" id="dh-buscar" oninput="dhFiltrar()" placeholder="Buscar por cliente, RIF, código Premium o factura..." style="width: 100%; padding: 0.5rem 0.7rem; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 0.5rem;">
+          <div style="margin-bottom: 0.4rem; font-size: 0.8rem;"><a href="#" onclick="dhMarcar(true); return false;" style="color: #2563eb; font-weight: 700;">Marcar todas</a> · <a href="#" onclick="dhMarcar(false); return false;" style="color: #2563eb; font-weight: 700;">Desmarcar todas</a> (las visibles)</div>
+          <div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+            <thead><tr style="background: #f1f5f9; text-align: left;"><th style="padding: 5px 8px;"></th><th style="padding: 5px 8px;">Cliente</th><th style="padding: 5px 8px;">RIF / Cód. Premium</th><th style="padding: 5px 8px;">Factura</th><th style="padding: 5px 8px;">Emisión</th><th style="padding: 5px 8px; text-align: right;">USD</th><th style="padding: 5px 8px; text-align: right;">Tasa</th></tr></thead>
+            <tbody>${filas.map(f => { const c = clientes[f.rif_cedula] || {}; return `
+              <tr class="dh-fila" data-t="${dhEsc(((c.nombre || "") + " " + f.rif_cedula + " " + (c.codigo_premium || "") + " " + f.referencia_doc).toLowerCase())}">
+                <td ${td}><input type="checkbox" class="dh-chk" data-id="${f.id}" onchange="dhContar()"></td>
+                <td ${td}>${dhEsc(c.nombre || "(sin nombre)")}</td>
+                <td ${td}>${dhEsc(f.rif_cedula)}${c.codigo_premium ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Premium: ${dhEsc(c.codigo_premium)}</div>` : ""}</td>
+                <td ${td}><strong>${dhEsc(f.referencia_doc)}</strong></td>
+                <td ${td}>${f.fecha_emision ? dhEsc(String(f.fecha_emision).slice(0, 10).split("-").reverse().join("/")) : "—"}</td>
+                <td ${td} align="right"><strong>$${fmtVE(dhN(f.monto))}</strong></td>
+                <td ${td} align="right">${dhEsc(dhTasa(f.observacion))}</td>
+              </tr>`; }).join("")}</tbody></table></div>`,
+          `<div id="dh-cont" style="font-size: 0.85rem;"></div><div style="display: flex; gap: 0.5rem;">${dhBtn("Volver", "abrirDeshacerImportacion()")}<span id="dh-sig"></span></div>`);
+        dhContar();
+      } catch (e) { dhCerrar(); alert("No se pudo cargar el lote: " + (e.message || e)); }
+    }
+    function dhFiltrar() {
+      const t = document.getElementById("dh-buscar").value.trim().toLowerCase();
+      document.querySelectorAll("#dh-modal .dh-fila").forEach(f => { f.style.display = (!t || f.dataset.t.includes(t)) ? "" : "none"; });
+    }
+    function dhMarcar(v) {
+      document.querySelectorAll("#dh-modal .dh-fila").forEach(f => { if (f.style.display !== "none") f.querySelector(".dh-chk").checked = v; });
+      dhContar();
+    }
+    function dhIdsMarcados() {
+      return new Set([...document.querySelectorAll("#dh-modal .dh-chk")].filter(c => c.checked).map(c => Number(c.dataset.id)));
+    }
+    function dhContar() {
+      const ids = dhIdsMarcados();
+      const usd = dh.filas.filter(f => ids.has(f.id)).reduce((t, f) => t + dhN(f.monto), 0);
+      document.getElementById("dh-cont").innerHTML = `Se eliminarán <strong>${ids.size}</strong> factura${ids.size === 1 ? "" : "s"} · $${fmtVE(usd)}`;
+      document.getElementById("dh-sig").innerHTML = dhBtn("Revisar lo seleccionado", "dhRevisar()", "admin-btn-primary", ids.size === 0);
+    }
+
+    // Revisión previa (solo lectura): comprueba que el historial de cada cliente cuadre y calcula los saldos nuevos
+    async function dhRevisar() {
+      try {
+        const ids = dhIdsMarcados();
+        const sel = dh.filas.filter(f => ids.has(f.id));
+        if (!sel.length) return;
+        dhPantalla("Revisando...", "Comprobando el historial de cada cliente. No se modifica nada.", "", "");
+        const porCli = {};
+        sel.forEach(f => (porCli[f.rif_cedula] = porCli[f.rif_cedula] || []).push(f));
+        const rifs = Object.keys(porCli), minId = Math.min(...sel.map(f => f.id));
+        let movs = [];
+        const deudas = {};
+        for (let i = 0; i < rifs.length; i += 80) {
+          const lote = rifs.slice(i, i + 80);
+          movs = movs.concat(await dhPaginar(() => _supabase.from("historial_cuentas")
+            .select("id, rif_cedula, tipo_movimiento, monto, signo, saldo_resultante, referencia_doc")
+            .in("rif_cedula", lote).gte("id", minId).order("id", { ascending: true })));
+          const { data, error } = await _supabase.from("clientes").select("rif_cedula, deuda_actual").in("rif_cedula", lote);
+          if (error) throw error;
+          (data || []).forEach(c => { deudas[c.rif_cedula] = dhN(c.deuda_actual); });
+        }
+        const plan = rifs.map(rif => {
+          const filas = movs.filter(m => m.rif_cedula === rif).sort((a, b) => a.id - b.id);
+          const quitar = new Set(porCli[rif].map(f => f.id));
+          const p = { rif, nombre: (dh.clientes[rif] || {}).nombre || rif, quitar: porCli[rif], deuda: deudas[rif], motivo: null, recalc: [], ultimoId: filas.length ? filas[filas.length - 1].id : 0 };
+          if (deudas[rif] === undefined) { p.motivo = "No se encontró el cliente."; return p; }
+          if (!filas.length || ![...quitar].every(id => filas.some(m => m.id === id))) { p.motivo = "Las facturas ya no están en el historial."; return p; }
+          let prev = dhN(filas[0].saldo_resultante) - dhFirmado(filas[0]);
+          for (const m of filas) {
+            if (Math.abs(dhR2(prev + dhFirmado(m)) - dhN(m.saldo_resultante)) > DH_TOL) { p.motivo = `El saldo de ${m.tipo_movimiento} ${m.referencia_doc} no cuadra con el movimiento anterior.`; return p; }
+            prev = dhN(m.saldo_resultante);
+          }
+          if (Math.abs(prev - deudas[rif]) > DH_TOL) { p.motivo = "La deuda actual no coincide con el último saldo del historial."; return p; }
+          let sa = dhN(filas[0].saldo_resultante) - dhFirmado(filas[0]);
+          for (const m of filas) {
+            if (quitar.has(m.id)) continue;
+            sa = dhR2(sa + dhFirmado(m));
+            if (Math.abs(sa - dhN(m.saldo_resultante)) > 0.004) p.recalc.push({ id: m.id, antes: dhN(m.saldo_resultante), nuevo: sa, tipo: m.tipo_movimiento, doc: m.referencia_doc });
+          }
+          p.deudaNueva = dhR2(sa);
+          return p;
+        });
+        dh.plan = plan;
+        const ok = plan.filter(p => !p.motivo), no = plan.filter(p => p.motivo);
+        const td = 'style="padding: 5px 8px; border-bottom: 1px solid var(--border-color);"';
+        const nQuitar = ok.reduce((t, p) => t + p.quitar.length, 0);
+        const usd = ok.reduce((t, p) => t + p.quitar.reduce((x, f) => x + dhN(f.monto), 0), 0);
+        dhPantalla("Confirmar: deshacer facturas del lote", dh.loteId, `
+          <div style="font-size: 0.9rem; margin-bottom: 0.6rem;">Se eliminarán <strong>${nQuitar}</strong> facturas ($${fmtVE(usd)}) de <strong>${ok.length}</strong> cliente${ok.length === 1 ? "" : "s"}. Se guarda copia de todo en la tabla de respaldo.</div>
+          ${ok.length ? `<div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+            <thead><tr style="background: #f1f5f9; text-align: left;"><th style="padding: 5px 8px;">Cliente</th><th style="padding: 5px 8px;">Facturas a quitar</th><th style="padding: 5px 8px; text-align: right;">Deuda actual</th><th style="padding: 5px 8px; text-align: right;">Deuda después</th><th style="padding: 5px 8px; text-align: right;">Saldos a recalcular</th></tr></thead>
+            <tbody>${ok.map(p => `<tr><td ${td}>${dhEsc(p.nombre)}<div style="font-size: 0.7rem; color: var(--text-muted);">${dhEsc(p.rif)}</div></td><td ${td}>${p.quitar.map(f => dhEsc(f.referencia_doc) + " ($" + fmtVE(dhN(f.monto)) + ")").join(", ")}</td><td ${td} align="right">$${fmtVE(p.deuda)}</td><td ${td} align="right"><strong>$${fmtVE(p.deudaNueva)}</strong></td><td ${td} align="right">${p.recalc.length}</td></tr>`).join("")}</tbody></table></div>` : ""}
+          ${no.length ? `<div style="margin-top: 0.75rem; border: 2px solid #f59e0b; background: #fffbeb; border-radius: 10px; padding: 0.6rem 0.8rem;">
+            <div style="font-weight: 700; color: #b45309; font-size: 0.85rem;">⚠ ${no.length} cliente${no.length === 1 ? "" : "s"} NO se tocará${no.length === 1 ? "" : "n"} (revíselos aparte):</div>
+            ${no.map(p => `<div style="font-size: 0.8rem; margin-top: 0.25rem;"><strong>${dhEsc(p.nombre)}</strong> (${dhEsc(p.rif)}): ${dhEsc(p.motivo)}</div>`).join("")}</div>` : ""}
+          ${ok.length ? `<div style="margin-top: 0.9rem;"><label style="font-size: 0.8rem; font-weight: 700;">Motivo (opcional)</label>
+            <input type="text" id="dh-motivo" placeholder="Ej: tasa mal ingresada" style="width: 100%; padding: 0.5rem 0.7rem; border: 1px solid var(--border-color); border-radius: 8px; margin: 0.25rem 0 0.6rem;">
+            <label style="font-size: 0.8rem; font-weight: 700;">Para confirmar, escriba DESHACER</label>
+            <input type="text" id="dh-conf" oninput="document.getElementById('dh-go').disabled = this.value.trim().toUpperCase() !== 'DESHACER'" style="width: 100%; padding: 0.5rem 0.7rem; border: 1px solid var(--border-color); border-radius: 8px; margin-top: 0.25rem;"></div>` : ""}`,
+          `<div></div><div style="display: flex; gap: 0.5rem;">${dhBtn("Volver", "dhVerLote('" + dh.loteId + "')")}${ok.length ? `<button type="button" id="dh-go" disabled onclick="dhEjecutar()" class="admin-btn-primary" style="padding: 0.55rem 1rem; border-radius: 8px; font-weight: 700;">Deshacer ahora</button>` : ""}</div>`);
+      } catch (e) { dhCerrar(); alert("No se pudo revisar: " + (e.message || e) + "\n\nNo se modificó nada."); }
+    }
+
+    // Ejecución: cliente por cliente. Primero el respaldo; si algo falla se detiene y lo informa.
+    async function dhEjecutar() {
+      const motivo = (document.getElementById("dh-motivo") || {}).value || "";
+      const ok = dh.plan.filter(p => !p.motivo);
+      const opId = "DESHACER_" + new Date().toISOString().replace(/[-:T.]/g, "").slice(0, 14);
+      const por = currentUser ? currentUser.usuario : "admin";
+      const hechos = [], omitidos = []; let fallo = null;
+      for (let i = 0; i < ok.length; i++) {
+        const p = ok[i];
+        dhPantalla("Deshaciendo...", `Cliente ${i + 1} de ${ok.length}. No cierre esta ventana.`, "", "");
+        try {
+          // Comprobación final: que nadie haya movido a este cliente desde la revisión
+          const c = await _supabase.from("clientes").select("deuda_actual").eq("rif_cedula", p.rif).single();
+          const nuevos = await _supabase.from("historial_cuentas").select("id").eq("rif_cedula", p.rif).gt("id", p.ultimoId).limit(1);
+          if (c.error || nuevos.error) throw (c.error || nuevos.error);
+          if (Math.abs(dhN(c.data.deuda_actual) - p.deuda) > 0.004 || (nuevos.data && nuevos.data.length)) { omitidos.push(p.nombre + ": cambió durante la revisión"); continue; }
+
+          const base = { operacion_id: opId, deshecho_por: por, motivo: motivo || null, lote_importacion: dh.loteId, rif_cedula: p.rif };
+          const resp = [
+            ...p.quitar.map(f => ({ ...base, tipo_respaldo: "FACTURA_ELIMINADA", fila: f })),
+            ...p.recalc.map(r => ({ ...base, tipo_respaldo: "SALDO_RECALCULADO", fila: r })),
+            { ...base, tipo_respaldo: "DEUDA_CLIENTE", fila: { antes: p.deuda, despues: p.deudaNueva } }
+          ];
+          const b = await _supabase.from("importaciones_deshechas").insert(resp);
+          if (b.error) throw b.error;                       // sin respaldo no se toca nada
+
+          const d = await _supabase.from("historial_cuentas").delete().in("id", p.quitar.map(f => f.id));
+          if (d.error) throw d.error;
+          for (const r of p.recalc) {
+            const u = await _supabase.from("historial_cuentas").update({ saldo_resultante: r.nuevo }).eq("id", r.id);
+            if (u.error) throw u.error;
+          }
+          const u2 = await _supabase.from("clientes").update({ deuda_actual: p.deudaNueva }).eq("rif_cedula", p.rif);
+          if (u2.error) throw u2.error;
+          hechos.push(p);
+        } catch (e) { fallo = { p, msg: e.message || String(e) }; break; }
+      }
+      if (typeof invalidarCacheClientes === "function") invalidarCacheClientes();
+      const sin = dh.plan.filter(p => p.motivo);
+      const pendientes = fallo ? ok.slice(ok.indexOf(fallo.p) + 1) : [];
+      dhPantalla(fallo ? "Se detuvo con un error" : "Listo", "Operación " + opId, `
+        <div style="font-size: 0.9rem;">✔ Clientes corregidos: <strong>${hechos.length}</strong> · Facturas eliminadas: <strong>${hechos.reduce((t, p) => t + p.quitar.length, 0)}</strong> · Deuda restada: <strong>$${fmtVE(hechos.reduce((t, p) => t + p.deuda - p.deudaNueva, 0))}</strong></div>
+        ${fallo ? `<div style="margin-top: 0.6rem; border: 2px solid #dc2626; background: #fef2f2; border-radius: 10px; padding: 0.6rem 0.8rem; font-size: 0.85rem;"><strong>Error en ${dhEsc(fallo.p.nombre)} (${dhEsc(fallo.p.rif)}):</strong> ${dhEsc(fallo.msg)}<br>Revise el Kardex de ese cliente (hay copia en importaciones_deshechas). No se procesaron ${pendientes.length} cliente(s) restante(s).</div>` : ""}
+        ${omitidos.length ? `<div style="margin-top: 0.6rem; font-size: 0.82rem; color: #b45309;">Omitidos: ${omitidos.map(dhEsc).join("; ")}</div>` : ""}
+        ${sin.length ? `<div style="margin-top: 0.6rem; font-size: 0.82rem; color: #b45309;">Sin tocar (no cuadraban): ${sin.map(p => dhEsc(p.nombre)).join(", ")}</div>` : ""}`,
+        `<div></div>${dhBtn("Cerrar", "dhCerrar()", "admin-btn-primary")}`);
     }
 
     async function procesarExcelPremiumSoft() {
@@ -7362,6 +7612,10 @@
         `;
       });
 
+      // Tamaño de letra del nombre del cliente: baja solo cuando el nombre es largo, para que quepa en una línea
+      const largoNombreCliente = String(cliente || "").length;
+      const tamNombreCliente = largoNombreCliente <= 42 ? 19 : largoNombreCliente <= 47 ? 17 : largoNombreCliente <= 50 ? 16 : largoNombreCliente <= 53 ? 15 : largoNombreCliente <= 57 ? 14 : largoNombreCliente <= 61 ? 13 : 12;
+
       const htmlContent = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -7374,9 +7628,20 @@
     .header { border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-start; }
     .header h1 { font-size: 18px; margin: 0; color: #0f172a; }
     .header p { font-size: 12px; margin: 4px 0 0; color: #475569; }
-    .info-box { background: #f1f5f9; padding: 12px 15px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .info-box div div { margin-bottom: 3px; }
-    .info-full { grid-column: span 2; margin-top: 4px; border-top: 1px dashed #cbd5e1; padding-top: 6px; }
+    .info-box { background: #f1f5f9; padding: 10px 14px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr); gap: 9px 16px; align-items: start; }
+    .ib-etq { font-size: 12px; font-weight: bold; color: #1e293b; margin-bottom: 2px; }
+    .ib-val { font-size: 16px; color: #0f172a; font-weight: bold; overflow-wrap: anywhere; line-height: 1.2; }
+    .ib-mono { font-family: monospace; }
+    .ib-codigo { grid-row: span 2; align-self: stretch; display: flex; flex-direction: column; justify-content: center; background: #fefce8; border: 2px solid #0f172a; border-radius: 6px; padding: 6px 14px; }
+    .ib-codigo .ib-etq { color: #0f172a; font-size: 11px; letter-spacing: 1px; }
+    .ib-cod { font-family: monospace; font-size: 18px; font-weight: bold; color: #0f172a; white-space: nowrap; }
+    .ib-cliente { grid-column: 2 / -1; }
+    .ib-cliente .ib-val { font-size: 19px; }
+    .ib-dir { grid-column: 1 / 4; border-top: 1px dashed #cbd5e1; padding-top: 6px; }
+    .ib-vend { grid-column: 4; border-top: 1px dashed #cbd5e1; padding-top: 6px; }
+    .ib-solo { grid-column: 1 / -1; }
+    .ib-dir .ib-val { font-weight: 600; color: #0f172a; font-size: 15px; }
+    @media (max-width: 560px) { .info-box { grid-template-columns: 1fr 1fr; } .ib-codigo { grid-column: 1 / -1; grid-row: auto; } .ib-cliente { grid-column: 1 / -1; } .ib-dir, .ib-vend { grid-column: 1 / -1; } .ib-vend { border-top: none; padding-top: 0; } }
     table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 15px; }
     th { background: #0f172a; color: white; padding: 8px; border: 1px solid #0f172a; text-align: left; }
     .summary { width: 55%; margin-left: auto; font-size: 13px; border-collapse: collapse; }
@@ -7398,26 +7663,36 @@
     </div>
 
     <div class="info-box">
-      <div>
-        <div><strong>Cliente / Local:</strong></div>
-        <div style="font-size: 14px; color: #1e293b; font-weight: bold;">${escapeHtml(cliente)}</div>
-        <div style="margin-top: 6px;"><strong>RIF / Cédula:</strong></div>
-        <div style="font-size: 13px; color: #334155; font-family: monospace;">${escapeHtml(rifCedula)}</div>
-        <div style="margin-top: 6px;"><strong>Teléfono:</strong></div>
-        <div style="font-size: 13px; color: #334155; font-family: monospace; font-weight: bold;">${escapeHtml(telefono)}</div>
-        <div style="margin-top: 8px;"><strong>Sector:</strong></div>
-        <div style="font-size: 13px; color: #00a884; font-weight: bold;">${escapeHtml(sector)}</div>
+      <div class="ib-codigo">
+        <div class="ib-etq">CÓDIGO</div>
+        <div class="ib-cod">${escapeHtml(rifCedula)}</div>
+      </div>
+      <div class="ib-cliente">
+        <div class="ib-etq">Cliente / Local</div>
+        <div class="ib-val" style="font-size: ${tamNombreCliente}px;">${escapeHtml(cliente)}</div>
       </div>
       <div>
-        <div><strong>Emitido por (Vendedor):</strong></div>
-        <div style="font-size: 14px; color: #1e293b; font-weight: bold;">${escapeHtml(vendedor)}</div>
+        <div class="ib-etq">RIF / Cédula</div>
+        <div class="ib-val ib-mono">${escapeHtml(rifCedula)}</div>
+      </div>
+      <div>
+        <div class="ib-etq">Teléfono</div>
+        <div class="ib-val ib-mono">${escapeHtml(telefono)}</div>
+      </div>
+      <div>
+        <div class="ib-etq">Sector</div>
+        <div class="ib-val" style="color: #047857;">${escapeHtml(sector)}</div>
       </div>
       ${direccion ? `
-      <div class="info-full">
-        <div><strong>Dirección:</strong></div>
-        <div style="font-size: 13px; color: #334155;">${escapeHtml(direccion)}</div>
+      <div class="ib-dir">
+        <div class="ib-etq">Dirección</div>
+        <div class="ib-val">${escapeHtml(direccion)}</div>
       </div>
       ` : ''}
+      <div class="ib-vend${direccion ? '' : ' ib-solo'}">
+        <div class="ib-etq">Emitido por (Vendedor)</div>
+        <div class="ib-val">${escapeHtml(vendedor)}</div>
+      </div>
     </div>
 
     <table>
