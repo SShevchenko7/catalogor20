@@ -1139,6 +1139,11 @@
         <h3 style="font-size: 1.1rem; color: var(--primary-color);">Módulo de Usuarios</h3>
         <span style="font-size: 0.8rem; color: var(--text-muted);">Crear, modificar accesos y privilegios</span>
       </div>
+      <div class="admin-menu-card" id="menuCardDirectorio" onclick="abrirModuloAdmin('directorio')" style="background: white; border: 1px solid var(--border-color); border-radius: 12px; padding: 2rem 1.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+        <i class="fa-solid fa-address-book" style="font-size: 2.5rem; color: var(--accent-color);"></i>
+        <h3 style="font-size: 1.1rem; color: var(--primary-color);">Directorio de Clientes</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Datos de contacto por vendedor, imprimir y Excel</span>
+      </div>
     </div>
   </div>
 
@@ -1279,15 +1284,31 @@
               <input type="text" id="pago-referencia" placeholder="Ej: 00123456" />
             </div>
             <div class="admin-input-group">
-              <label>Banco</label>
-              <input type="text" id="pago-banco" placeholder="Ej: Banesco" />
+              <label>Banco *</label>
+              <select id="pago-banco" onchange="pagoBancoCambio()">
+                <option value="">Seleccione el banco...</option>
+                <option value="Banesco">Banesco</option>
+                <option value="Banco de Venezuela">Banco de Venezuela</option>
+                <option value="Mercantil">Mercantil</option>
+                <option value="BBVA Provincial">BBVA Provincial</option>
+                <option value="BNC (Banco Nacional de Crédito)">BNC (Banco Nacional de Crédito)</option>
+                <option value="Banco del Tesoro">Banco del Tesoro</option>
+                <option value="Bancaribe">Bancaribe</option>
+                <option value="Banco Exterior">Banco Exterior</option>
+                <option value="Bancamiga">Bancamiga</option>
+                <option value="Banco Activo">Banco Activo</option>
+                <option value="BFC Banco Fondo Común">BFC Banco Fondo Común</option>
+                <option value="Banco Digital de los Trabajadores">Banco Digital de los Trabajadores</option>
+                <option value="__otro">Otro...</option>
+              </select>
+              <input type="text" id="pago-banco-otro" placeholder="Escriba el nombre del banco" style="display: none; margin-top: 0.4rem;" />
             </div>
             <div class="admin-input-group">
               <label>Fecha del Pago *</label>
               <input type="date" id="pago-fecha" />
             </div>
             <div class="admin-input-group">
-              <label><i class="fa-solid fa-image"></i> Comprobante (Imagen / PDF)</label>
+              <label><i class="fa-solid fa-image"></i> Comprobante (Imagen / PDF) *</label>
               <input type="file" id="pago-comprobante" accept="image/*,application/pdf" style="padding: 0.4rem; font-size: 0.85rem;" />
             </div>
             <div class="admin-input-group" id="pago-observaciones-grupo" style="grid-column: 1 / -1; display: none;">
@@ -2702,6 +2723,7 @@
       if (tienePermiso(u, "reporte_deuda")) lista.push("reporte_deuda");
       if (tienePermiso(u, "pagos_vendedor")) lista.push("pagos_vendedor");
       if (esAdminGeneral(u)) lista.push("usuarios");
+      if (esAdminGeneral(u)) lista.push("directorio");
       return lista;
     }
 
@@ -2710,7 +2732,7 @@
     }
 
     function mostrarTarjetasMenu(modulos) {
-      [["ordenes", "menuCardOrdenes"], ["pagos", "menuCardPagos"], ["estado_cuenta", "menuCardEstadoCuenta"], ["reporte_deuda", "menuCardReporteDeuda"], ["pagos_vendedor", "menuCardPagosVendedor"], ["usuarios", "menuCardUsuarios"]].forEach(([modulo, id]) => {
+      [["ordenes", "menuCardOrdenes"], ["pagos", "menuCardPagos"], ["estado_cuenta", "menuCardEstadoCuenta"], ["reporte_deuda", "menuCardReporteDeuda"], ["pagos_vendedor", "menuCardPagosVendedor"], ["usuarios", "menuCardUsuarios"], ["directorio", "menuCardDirectorio"]].forEach(([modulo, id]) => {
         const el = document.getElementById(id);
         if (el) el.style.display = modulos.includes(modulo) ? "flex" : "none";
       });
@@ -2864,6 +2886,9 @@
         pvIniciar();
       } else if (modulo === 'usuarios') {
         openAdminModal();
+        if (menuAdmin) menuAdmin.style.display = "block";
+      } else if (modulo === 'directorio') {
+        abrirDirectorioClientes();
         if (menuAdmin) menuAdmin.style.display = "block";
       }
     }
@@ -4591,7 +4616,7 @@
             ${p.comprobante_url ? `<a href="${escapeHtml(p.comprobante_url)}" target="_blank" style="color:var(--accent-color); font-weight:bold; font-size:0.8rem;"><i class="fa-solid fa-file-arrow-down"></i> Ver</a>` : '-'}
           </td>
           <td>${escapeHtml(p.fecha_pago)}</td>
-          <td>${badgeEstado(p.estado)}${p.estado === "aprobado" && p.fecha_aprobacion ? `<br><span style="font-size:0.72rem; color:var(--text-muted);">Aprob.: ${new Date(p.fecha_aprobacion).toLocaleString()}</span>` : ""}</td>
+          <td>${badgeEstado(p.estado)}${p.estado === "aprobado" && p.fecha_aprobacion ? `<br><span style="font-size:0.72rem; color:var(--text-muted);">Aprob.: ${new Date(p.fecha_aprobacion).toLocaleString()}</span>` : ""}${p.estado === "rechazado" && p.motivo_rechazo ? `<br><span style="font-size:0.72rem; color:#b91c1c;">Motivo: ${escapeHtml(p.motivo_rechazo)}</span>` : ""}</td>
         </tr>
       `).join("");
     }
@@ -4653,7 +4678,7 @@
               ${p.descuento_pronto_pago ? `<div style="margin-top:6px;"><span class="admin-badge" style="background:#ccfbf1; color:#0f766e;">Vendedor indica: con descuento ${DESCUENTO_PRONTO_PAGO_PCT}%</span></div>` : ""}
               ${puedeAprobar ? `<label style="display:flex; align-items:center; gap:6px; margin-top:6px; font-size:0.78rem; font-weight:700; color:#0f766e; cursor:pointer;"><input type="checkbox" id="dpp-chk-${p.id}" style="width:auto; margin:0;" ${p.descuento_pronto_pago ? "checked" : ""} onchange="actualizarVistaDescuentoPP('${p.id}', ${montoBs})"> Aplicar descuento ${DESCUENTO_PRONTO_PAGO_PCT}% pronto pago</label><div id="dpp-monto-${p.id}" style="font-size:0.75rem; font-weight:600; color:#0f766e;"></div>` : ""}</td>
             <td style="text-align: center;">
-              ${p.comprobante_url ? `<a href="${escapeHtml(p.comprobante_url)}" target="_blank" style="color:var(--accent-color); font-weight:bold; font-size:0.8rem;"><i class="fa-solid fa-file-arrow-down"></i> Ver</a>` : '-'}
+              ${miniaturaComprobante(p.comprobante_url)}
             </td>
             <td>${escapeHtml(p.fecha_pago)}</td>
             <td style="text-align: center; white-space: nowrap;">
@@ -5063,7 +5088,7 @@
         status.textContent = "Espere: el pago se está registrando y ya no se puede cancelar.";
         return;
       }
-      ["pago-rif", "pago-nombre", "pago-monto", "pago-referencia", "pago-banco", "pago-comprobante", "pago-observaciones"].forEach(id => {
+      ["pago-rif", "pago-nombre", "pago-monto", "pago-referencia", "pago-banco", "pago-banco-otro", "pago-comprobante", "pago-observaciones"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = "";
       });
@@ -5071,11 +5096,129 @@
       if (fecha) fecha.value = new Date().toLocaleDateString("en-CA");
       const chkPP = document.getElementById("pago-descuento-pp");
       if (chkPP) chkPP.checked = false;
+      const bancoOtro = document.getElementById("pago-banco-otro");
+      if (bancoOtro) bancoOtro.style.display = "none";
       const info = document.getElementById("pago-cliente-info");
       if (info) info.textContent = "";
       status.textContent = "";
       _buscadoresListas.forEach(it => {
         if (it.input.id === "pago-rif") { it.lista.style.display = "none"; it.lista.innerHTML = ""; }
+      });
+    }
+
+    /* ===== Reporte de pagos: banco, huella del comprobante, vista previa y motivo de rechazo ===== */
+    function pagoBancoCambio() {
+      const sel = document.getElementById("pago-banco");
+      const otro = document.getElementById("pago-banco-otro");
+      if (!sel || !otro) return;
+      const mostrar = sel.value === "__otro";
+      otro.style.display = mostrar ? "block" : "none";
+      if (mostrar) otro.focus(); else otro.value = "";
+    }
+
+    function obtenerBancoPago() {
+      const sel = document.getElementById("pago-banco");
+      if (!sel) return "";
+      if (sel.value === "__otro") {
+        const otro = document.getElementById("pago-banco-otro");
+        return otro ? otro.value.trim() : "";
+      }
+      return (sel.value || "").trim();
+    }
+
+    async function calcularHuellaArchivo(archivo) {
+      try {
+        if (!archivo || !window.crypto || !crypto.subtle) return null;
+        const buf = await archivo.arrayBuffer();
+        const hash = await crypto.subtle.digest("SHA-256", buf);
+        return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+      } catch (e) {
+        console.warn("No se pudo calcular la huella del comprobante:", e);
+        return null;
+      }
+    }
+
+    function cerrarVisorComprobante() {
+      const v = document.getElementById("visor-comprobante");
+      if (v) v.remove();
+    }
+
+    function abrirVisorComprobante(url) {
+      cerrarVisorComprobante();
+      const v = document.createElement("div");
+      v.id = "visor-comprobante";
+      v.style.cssText = "position: fixed; inset: 0; background: rgba(15, 23, 42, 0.88); z-index: 10100; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; padding: 16px;";
+      v.addEventListener("click", (e) => { if (e.target === v) cerrarVisorComprobante(); });
+      v.innerHTML = `<img src="${escapeHtml(url)}" alt="Comprobante" style="max-width: 94vw; max-height: 82vh; object-fit: contain; border-radius: 8px; background: #fff;" />
+        <div style="display: flex; gap: 10px;">
+          <a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="background: #fff; color: #0f172a; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; text-decoration: none;">Abrir en pestaña nueva</a>
+          <button type="button" onclick="cerrarVisorComprobante()" style="background: #dc2626; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; cursor: pointer;">Cerrar</button>
+        </div>`;
+      document.body.appendChild(v);
+    }
+
+    function miniaturaComprobante(url) {
+      if (!url) return `<span style="color: #dc2626; font-size: 0.75rem; font-weight: 700;">Sin comprobante</span>`;
+      const u = escapeHtml(url);
+      const enlace = `<a href="${u}" target="_blank" style="color: var(--accent-color); font-weight: bold; font-size: 0.8rem;"><i class="fa-solid fa-file-arrow-down"></i> Ver</a>`;
+      if (/\.pdf(\?|$)/i.test(url)) return enlace;
+      return `<img src="${u}" data-url="${u}" loading="lazy" alt="Comprobante" title="Pulse para ampliar"
+        onclick="abrirVisorComprobante(this.dataset.url)"
+        onerror="this.onerror = null; this.outerHTML = this.dataset.enlace;" data-enlace="${escapeHtml(enlace)}"
+        style="width: 72px; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border-color); cursor: zoom-in;" />`;
+    }
+
+    function pedirMotivoRechazo() {
+      return new Promise(resolve => {
+        const motivos = [
+          "Los datos no coinciden con el comprobante",
+          "Comprobante ilegible o incompleto",
+          "Pago duplicado",
+          "El pago no llegó al banco",
+          "Otro"
+        ];
+        const m = document.createElement("div");
+        m.id = "modal-motivo-rechazo";
+        m.className = "modal-overlay";
+        m.style.display = "flex";
+        m.style.zIndex = "10050";
+        m.innerHTML = `<div class="modal-content" style="max-width: 460px;">
+          <div class="modal-header"><h3 style="font-size: 1.05rem;"><i class="fa-solid fa-ban" style="color: #dc2626;"></i> Rechazar pago</h3></div>
+          <div class="modal-body">
+            <p style="font-size: 0.85rem; margin-bottom: 0.6rem;">Indique el motivo. Quedará anotado en el Historial de Pagos Reportados.</p>
+            <select id="mr-motivo" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
+              <option value="">Seleccione el motivo...</option>
+              ${motivos.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("")}
+            </select>
+            <textarea id="mr-otro" rows="2" maxlength="200" placeholder="Escriba el motivo..." style="display: none; width: 100%; margin-top: 0.6rem; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px; font-family: inherit;"></textarea>
+            <div id="mr-error" style="color: #dc2626; font-size: 0.8rem; font-weight: 700; margin-top: 0.5rem;"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" id="mr-cancelar" style="padding: 0.55rem 1rem; border-radius: 8px; font-weight: 700; cursor: pointer; border: 1px solid var(--border-color); background: #fff;">Cancelar</button>
+            <button type="button" id="mr-confirmar" style="padding: 0.55rem 1rem; border-radius: 8px; font-weight: 700; cursor: pointer; border: none; background: #dc2626; color: #fff;">Rechazar pago</button>
+          </div>
+        </div>`;
+        document.body.appendChild(m);
+        const sel = m.querySelector("#mr-motivo");
+        const otro = m.querySelector("#mr-otro");
+        const err = m.querySelector("#mr-error");
+        const cerrar = (valor) => { m.remove(); resolve(valor); };
+        sel.addEventListener("change", () => {
+          otro.style.display = sel.value === "Otro" ? "block" : "none";
+          err.textContent = "";
+          if (sel.value === "Otro") otro.focus();
+        });
+        m.querySelector("#mr-cancelar").addEventListener("click", () => cerrar(null));
+        m.querySelector("#mr-confirmar").addEventListener("click", () => {
+          if (!sel.value) { err.textContent = "Seleccione el motivo del rechazo."; return; }
+          if (sel.value === "Otro") {
+            const t = otro.value.trim();
+            if (!t) { err.textContent = "Escriba el motivo del rechazo."; return; }
+            cerrar("Otro: " + t);
+            return;
+          }
+          cerrar(sel.value);
+        });
       });
     }
 
@@ -5099,7 +5242,7 @@
 
       const montoBs = parseNumeroVE(document.getElementById("pago-monto").value);
       const referencia = document.getElementById("pago-referencia").value.trim();
-      const banco = document.getElementById("pago-banco").value.trim();
+      const banco = obtenerBancoPago();
       const fecha = document.getElementById("pago-fecha").value;
       const vendedorCampo = document.getElementById("pago-vendedor").value.trim();
       const vendedor = limitado ? currentUser.usuario : (vendedorCampo || currentUser.usuario);
@@ -5108,6 +5251,9 @@
       if (!(montoBs > 0)) { setStatus("Ingrese un monto en Bs. mayor a cero.", "#dc2626"); return; }
       if (!referencia || !refNorm) { setStatus("Ingrese un número de referencia válido.", "#dc2626"); return; }
       if (!fecha) { setStatus("Seleccione la fecha del pago.", "#dc2626"); return; }
+      if (!banco) { setStatus("Seleccione el banco del pago (si no está en la lista, elija «Otro» y escríbalo).", "#dc2626"); return; }
+      const archivoComprobante = ((document.getElementById("pago-comprobante") || {}).files || [])[0];
+      if (!archivoComprobante) { setStatus("Debe adjuntar el comprobante del pago (imagen o PDF). Sin comprobante no se puede reportar.", "#dc2626"); return; }
 
       btn.disabled = true;
       setStatus("Verificando que el pago no esté duplicado...", "var(--text-muted)");
@@ -5149,7 +5295,32 @@
         }
       }
 
-      // Subida del comprobante (si se seleccionó). Si falla, el pago NO se registra sin su evidencia.
+      // Huella del archivo: impide reutilizar el mismo comprobante en otro pago no rechazado
+      setStatus("Verificando el comprobante...", "var(--text-muted)");
+      const huella = await calcularHuellaArchivo(archivoComprobante);
+      if (huella) {
+        const { data: mismaImagen, error: errHuella } = await _supabase
+          .from("pagos_registrados")
+          .select("id, estado, created_at")
+          .eq("comprobante_hash", huella)
+          .neq("estado", "rechazado")
+          .limit(1);
+        if (errHuella) {
+          btn.disabled = false;
+          setStatus("No se pudo verificar el comprobante: " + errHuella.message + " Falta ejecutar el script SQL que agrega la columna comprobante_hash en pagos_registrados.", "#dc2626");
+          return;
+        }
+        if (mismaImagen && mismaImagen.length > 0) {
+          btn.disabled = false;
+          const cuandoImg = mismaImagen[0].created_at ? new Date(mismaImagen[0].created_at).toLocaleDateString() : "fecha desconocida";
+          const textoImg = `⚠️ COMPROBANTE REPETIDO: este mismo archivo ya fue usado en otro pago reportado el ${cuandoImg} (estado: ${mismaImagen[0].estado}). Este pago NO fue registrado. Si es un pago distinto, adjunte el comprobante correcto.`;
+          setStatus(textoImg, "#dc2626");
+          alert(textoImg);
+          return;
+        }
+      }
+
+      // Subida del comprobante. Si falla, el pago NO se registra sin su evidencia.
       let comprobanteUrl = null;
       if (inputComprobante && inputComprobante.files && inputComprobante.files.length > 0) {
         const subida = await subirComprobanteACloudinary(inputComprobante, (msg) => setStatus(msg, "var(--text-muted)"));
@@ -5176,6 +5347,7 @@
         banco: banco || null,
         fecha_pago: fecha,
         comprobante_url: comprobanteUrl,
+        comprobante_hash: huella,
         estado: "pendiente"
       };
       if (observaciones) registro.observaciones = observaciones;
@@ -5188,7 +5360,9 @@
 
       if (error) {
         console.error("Error al registrar pago:", error);
-        const pistaObs = (error.message || "").toLowerCase().includes("observaciones")
+        const pistaObs = (error.message || "").toLowerCase().includes("comprobante_hash")
+          ? " Falta ejecutar el script SQL que agrega la columna comprobante_hash en pagos_registrados."
+          : (error.message || "").toLowerCase().includes("observaciones")
           ? " Falta ejecutar el script SQL que agrega la columna observaciones en pagos_registrados."
           : ((error.message || "").toLowerCase().includes("descuento_pronto_pago")
             ? " Falta ejecutar el script SQL que agrega la columna descuento_pronto_pago en pagos_registrados."
@@ -5203,6 +5377,8 @@
       document.getElementById("pago-monto").value = "";
       document.getElementById("pago-referencia").value = "";
       document.getElementById("pago-banco").value = "";
+      const bancoOtroEl = document.getElementById("pago-banco-otro");
+      if (bancoOtroEl) { bancoOtroEl.value = ""; bancoOtroEl.style.display = "none"; }
       if (campoObs) campoObs.value = "";
       if (chkDescPP) chkDescPP.checked = false;
       if (inputComprobante) inputComprobante.value = "";
@@ -5237,9 +5413,16 @@
         const usdPrev = pPrev ? parseFloat((parseFloat(pPrev.monto_bs || 0) / tasaFinal).toFixed(2)) : 0;
         textoConfirm += `\n\nSe aplicará también el descuento por pronto pago (${DESCUENTO_PRONTO_PAGO_PCT}%): $${fmtVE(calcularDescuentoPP(usdPrev))}.`;
       }
-      if (!confirm(textoConfirm)) return;
+      let motivoRechazo = null;
+      if (nuevoEstado === "rechazado") {
+        motivoRechazo = await pedirMotivoRechazo();
+        if (!motivoRechazo) return;
+      } else if (!confirm(textoConfirm)) {
+        return;
+      }
 
       const datosUpdate = { estado: nuevoEstado };
+      if (motivoRechazo) datosUpdate.motivo_rechazo = motivoRechazo;
       if (nuevoEstado === "aprobado") {
         const { data: pActual } = await _supabase.from("pagos_registrados").select("monto_bs").eq("id", pagoId).single();
         const mBs = pActual ? parseFloat(pActual.monto_bs || 0) : 0;
@@ -5258,7 +5441,7 @@
         .select();
 
       if (errReclamo) {
-        alert("No se pudo procesar el pago: " + errReclamo.message);
+        alert("No se pudo procesar el pago: " + errReclamo.message + ((errReclamo.message || "").toLowerCase().includes("motivo_rechazo") ? "\n\nFalta ejecutar el script SQL que agrega la columna motivo_rechazo en pagos_registrados." : ""));
         return;
       }
       if (!reclamado || reclamado.length === 0) {
@@ -5959,14 +6142,14 @@
 
     /* ---------------------------------------------------------
        COBRANZA POR FACTURAS
-       - Cada factura vence a los 7 días corridos después de su emisión: se cuentan todos los días
+       - Cada factura vence a los 8 días corridos después de su emisión: se cuentan todos los días
          de forma continua, incluyendo sábados, domingos y feriados (el día de emisión no cuenta).
        - Como los pagos cancelan primero las facturas más antiguas, la deuda actual del cliente
          se reparte hacia atrás, desde la factura más reciente: así se sabe cuáles siguen pendientes.
        - Si la deuda es mayor que la suma de las facturas cargadas, la diferencia se muestra
          como "Saldo anterior sin factura".
     --------------------------------------------------------- */
-    const COBRANZA_PLAZO_DIAS = 7;
+    const COBRANZA_PLAZO_DIAS = 8;
     // false = días corridos (cuentan todos los días). Con true solo cuentan de lunes a viernes, sin los feriados listados.
     const COBRANZA_SOLO_HABILES = false;
     const COBRANZA_FERIADOS = [];   // solo se usa si COBRANZA_SOLO_HABILES es true
@@ -7797,6 +7980,280 @@
       reiniciarSeleccionCliente();
 
       filterProducts();
+    }
+
+    /* =========================================================
+       DIRECTORIO DE CLIENTES (solo Administrador General)
+       - Solo LEE datos de contacto (sin deudas ni movimientos).
+       - No guarda ni modifica nada en la base de datos.
+       ========================================================= */
+    let dcClientes = [];
+    let dcFiltroVend = "";
+    let dcBusqueda = "";
+    let dcSoloIncompletos = false;
+    let dcTemporizador = null;
+
+    function dcTxt(v) { return String(v == null ? "" : v).trim(); }
+
+    async function abrirDirectorioClientes() {
+      if (!esAdminGeneral(currentUser)) { alert("Solo el administrador general puede abrir el Directorio de Clientes."); return; }
+      dcFiltroVend = ""; dcBusqueda = ""; dcSoloIncompletos = false;
+      dcPantalla();
+      const cont = document.getElementById("dc-tabla");
+      cont.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--text-muted);">Cargando clientes...</div>`;
+      try {
+        await dcCargarDatos();
+        dcLlenarFiltro();
+        dcRender();
+      } catch (e) {
+        console.error("Error al cargar el directorio de clientes:", e);
+        cont.innerHTML = `<div style="padding: 2rem; text-align: center; color: #b91c1c;">No se pudo cargar el directorio. Revise su conexión e intente de nuevo.</div>`;
+      }
+    }
+
+    function dcCerrar() { const m = document.getElementById("dc-modal"); if (m) m.remove(); }
+
+    function dcPantalla() {
+      dcCerrar();
+      const boton = "padding: 0.55rem 1rem; border-radius: 8px; font-weight: 700; cursor: pointer; border: 1px solid var(--border-color); background: #fff;";
+      const botonFuerte = "padding: 0.55rem 1rem; border-radius: 8px; font-weight: 700; cursor: pointer; border: none; background: var(--accent-color); color: #fff;";
+      const m = document.createElement("div");
+      m.id = "dc-modal"; m.className = "modal-overlay"; m.style.display = "flex";
+      m.innerHTML = `<div class="modal-content" style="max-width: 1250px; width: 100%; height: 92vh; max-height: 92vh;">
+        <div class="modal-header">
+          <div>
+            <h3 style="font-size: 1.05rem;"><i class="fa-solid fa-address-book"></i> Directorio de Clientes</h3>
+            <div style="font-size: 0.78rem; color: var(--text-muted);">Solo datos de contacto. No incluye deudas ni movimientos.</div>
+          </div>
+          <button type="button" onclick="dcCerrar()" style="${boton}"><i class="fa-solid fa-xmark"></i> Cerrar</button>
+        </div>
+        <div class="modal-body" style="flex: 1; display: flex; flex-direction: column; gap: 0.75rem; min-height: 0;">
+          <div style="display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: center;">
+            <select id="dc-vend" onchange="dcCambiarVendedor(this.value)" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 8px; min-width: 240px;"></select>
+            <input type="text" id="dc-buscar" oninput="dcBuscar(this.value)" autocomplete="off" placeholder="Buscar por nombre, código, teléfono, dirección..." style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 8px; flex: 1; min-width: 220px;" />
+            <label style="font-size: 0.82rem; font-weight: 700; display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" id="dc-incompletos" onchange="dcCambiarIncompletos(this.checked)" /> Solo con datos incompletos</label>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; align-items: center; font-size: 0.8rem;">
+            <label style="display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" id="dc-salto" checked /> Al imprimir: cada vendedor en hoja aparte</label>
+            <label style="display: flex; align-items: center; gap: 0.3rem;"><input type="checkbox" id="dc-premium-print" checked /> Al imprimir: incluir Código Premium</label>
+            <span id="dc-conteo" style="color: var(--text-muted); font-weight: 700;"></span>
+          </div>
+          <div id="dc-tabla" style="flex: 1; overflow: auto; border: 1px solid var(--border-color); border-radius: 8px; min-height: 0;"></div>
+        </div>
+        <div class="modal-footer" style="flex-wrap: wrap;">
+          <button type="button" onclick="dcImprimir()" style="${botonFuerte}"><i class="fa-solid fa-print"></i> Imprimir lista</button>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+            <button type="button" onclick="dcExcelVendedor()" style="${boton}"><i class="fa-solid fa-file-excel" style="color: #16a34a;"></i> Excel para el vendedor</button>
+            <button type="button" onclick="dcExcelCompleto()" style="${boton}"><i class="fa-solid fa-file-excel" style="color: #16a34a;"></i> Excel completo (administrador)</button>
+          </div>
+        </div>
+      </div>`;
+      document.body.appendChild(m);
+    }
+
+    async function dcCargarDatos() {
+      let lista;
+      try {
+        lista = await leerTodosLosClientes("rif_cedula, nombre, telefono, direccion, sector, vendedor_email, codigo_premium");
+      } catch (e) {
+        lista = await leerTodosLosClientes("rif_cedula, nombre, telefono, direccion, sector, vendedor_email");
+      }
+      const nombres = {};
+      const { data: us } = await _supabase.from("usuarios").select("usuario, nombre_completo");
+      (us || []).forEach(u => { nombres[dcTxt(u.usuario)] = u.nombre_completo || u.usuario; });
+      dcClientes = lista.map(c => {
+        const clave = dcTxt(c.vendedor_email);
+        return {
+          rif: dcTxt(c.rif_cedula),
+          nombre: dcTxt(c.nombre),
+          tel: dcTxt(c.telefono),
+          dir: dcTxt(c.direccion),
+          sector: dcTxt(c.sector),
+          premium: dcTxt(c.codigo_premium),
+          vendKey: clave || "(sin vendedor)",
+          vendNombre: clave ? (nombres[clave] || clave) : "Sin vendedor"
+        };
+      }).sort((a, b) => a.vendNombre.localeCompare(b.vendNombre) || a.nombre.localeCompare(b.nombre));
+    }
+
+    function dcIncompleto(c) { return !c.tel || !c.dir || !c.sector; }
+
+    function dcListaFiltrada() {
+      const q = dcBusqueda.trim().toLowerCase();
+      const qCod = q.replace(/[^a-z0-9]/g, "");
+      return dcClientes.filter(c => {
+        if (dcFiltroVend && c.vendKey !== dcFiltroVend) return false;
+        if (dcSoloIncompletos && !dcIncompleto(c)) return false;
+        if (!q) return true;
+        const hay = [c.rif, c.nombre, c.tel, c.dir, c.sector, c.premium, c.vendNombre].join(" ").toLowerCase();
+        if (hay.includes(q)) return true;
+        return qCod && c.rif.replace(/[^a-z0-9]/gi, "").toLowerCase().includes(qCod);
+      });
+    }
+
+    function dcAgrupar(lista) {
+      const grupos = [];
+      const mapa = {};
+      lista.forEach(c => {
+        if (!mapa[c.vendKey]) { mapa[c.vendKey] = { key: c.vendKey, nombre: c.vendNombre, lista: [] }; grupos.push(mapa[c.vendKey]); }
+        mapa[c.vendKey].lista.push(c);
+      });
+      return grupos.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    }
+
+    function dcLlenarFiltro() {
+      const sel = document.getElementById("dc-vend");
+      if (!sel) return;
+      const grupos = dcAgrupar(dcClientes);
+      sel.innerHTML = `<option value="">Todos los vendedores (${dcClientes.length} clientes)</option>`
+        + grupos.map(g => `<option value="${escapeHtml(g.key)}">${escapeHtml(g.nombre)} (${g.lista.length})</option>`).join("");
+      sel.value = dcFiltroVend;
+    }
+
+    function dcCambiarVendedor(v) { dcFiltroVend = v; dcRender(); }
+    function dcCambiarIncompletos(b) { dcSoloIncompletos = !!b; dcRender(); }
+    function dcBuscar(v) {
+      dcBusqueda = v;
+      clearTimeout(dcTemporizador);
+      dcTemporizador = setTimeout(dcRender, 200);
+    }
+
+    function dcCelda(valor) {
+      return valor ? escapeHtml(valor) : `<span style="color: #dc2626; font-weight: 800;">FALTA</span>`;
+    }
+
+    function dcRender() {
+      const cont = document.getElementById("dc-tabla");
+      if (!cont) return;
+      const lista = dcListaFiltrada();
+      const nIncompletos = lista.filter(dcIncompleto).length;
+      const conteo = document.getElementById("dc-conteo");
+      if (conteo) conteo.textContent = `Mostrando ${lista.length} de ${dcClientes.length} clientes · Con datos incompletos: ${nIncompletos}`;
+      if (!lista.length) {
+        cont.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--text-muted);">No hay clientes con ese filtro.</div>`;
+        return;
+      }
+      const td = "padding: 0.4rem 0.55rem; border-bottom: 1px solid #e2e8f0; vertical-align: top;";
+      const th = "padding: 0.5rem 0.55rem; text-align: left; position: sticky; top: 0; background: #0f172a; color: #fff; white-space: nowrap;";
+      cont.innerHTML = `<table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+        <thead><tr>
+          <th style="${th}">N°</th><th style="${th}">Código</th><th style="${th}">Cliente / Local</th><th style="${th}">Teléfono</th>
+          <th style="${th}">Dirección</th><th style="${th}">Sector</th><th style="${th}">Vendedor</th><th style="${th}">Código Premium</th>
+        </tr></thead>
+        <tbody>${lista.map((c, i) => `<tr>
+          <td style="${td} color: var(--text-muted);">${i + 1}</td>
+          <td style="${td} font-family: monospace; font-weight: 700; white-space: nowrap;">${escapeHtml(c.rif)}</td>
+          <td style="${td} font-weight: 700;">${c.nombre ? escapeHtml(c.nombre) : '<span style="color: #dc2626; font-weight: 800;">FALTA</span>'}</td>
+          <td style="${td} white-space: nowrap;">${dcCelda(c.tel)}</td>
+          <td style="${td}">${dcCelda(c.dir)}</td>
+          <td style="${td}">${dcCelda(c.sector)}</td>
+          <td style="${td}">${escapeHtml(c.vendNombre)}</td>
+          <td style="${td} font-family: monospace;">${c.premium ? escapeHtml(c.premium) : '<span style="color: #94a3b8;">—</span>'}</td>
+        </tr>`).join("")}</tbody></table>`;
+    }
+
+    function dcImprimir() {
+      if (!esAdminGeneral(currentUser)) { alert("Solo el administrador general puede imprimir el directorio."); return; }
+      const lista = dcListaFiltrada();
+      if (!lista.length) { alert("No hay clientes para imprimir con el filtro actual."); return; }
+      const salto = document.getElementById("dc-salto").checked;
+      const conPremium = document.getElementById("dc-premium-print").checked;
+      const grupos = dcAgrupar(lista);
+      const falta = `<span class="falta">FALTA</span>`;
+      const celda = (v) => v ? escapeHtml(v) : falta;
+      const cuerpo = grupos.map(g => `<section class="grupo">
+        <h2>Vendedor: ${escapeHtml(g.nombre)} <small>(${g.lista.length} cliente${g.lista.length === 1 ? "" : "s"})</small></h2>
+        <table>
+          <thead><tr><th class="n">N°</th><th class="cod">Código</th><th class="cli">Cliente / Local</th><th class="tel">Teléfono</th><th class="dir">Dirección</th><th class="sec">Sector</th>${conPremium ? '<th class="pre">Código Premium</th>' : ""}<th class="obs">Corrección / Observación</th></tr></thead>
+          <tbody>${g.lista.map((c, i) => `<tr><td class="n">${i + 1}</td><td class="cod">${escapeHtml(c.rif)}</td><td class="cli">${c.nombre ? escapeHtml(c.nombre) : falta}</td><td class="tel">${celda(c.tel)}</td><td class="dir">${celda(c.dir)}</td><td class="sec">${celda(c.sector)}</td>${conPremium ? `<td class="pre">${escapeHtml(c.premium)}</td>` : ""}<td class="obs"></td></tr>`).join("")}</tbody>
+        </table></section>`).join("");
+      const notaFiltro = dcSoloIncompletos ? " &bull; Solo clientes con datos incompletos" : "";
+      const css = `@page { size: landscape; margin: 10mm; }
+        body { font-family: Arial, sans-serif; font-size: 10px; color: #000; margin: 0; }
+        h1 { font-size: 16px; margin: 0 0 2px; }
+        .meta { font-size: 10px; color: #333; margin-bottom: 8px; }
+        h2 { font-size: 13px; margin: 10px 0 4px; }
+        h2 small { font-weight: normal; font-size: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
+        th { background: #e2e8f0; border: 1px solid #475569; padding: 3px 4px; text-align: left; font-size: 10px; }
+        td { border: 1px solid #94a3b8; padding: 4px; vertical-align: top; height: 16px; }
+        .n { width: 3%; } .cod { width: 9%; font-family: monospace; font-weight: bold; white-space: nowrap; } .cli { width: 20%; font-weight: bold; }
+        .tel { width: 9%; white-space: nowrap; } .dir { width: 24%; } .sec { width: 8%; } .pre { width: 8%; font-family: monospace; } .obs { width: 20%; }
+        th.cod, th.pre { font-family: Arial, sans-serif; }
+        .falta { font-weight: bold; border: 1px dashed #000; padding: 0 3px; }
+        ${salto ? ".grupo + .grupo { page-break-before: always; }" : ""}`;
+      const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Directorio de Clientes</title><style>${css}</style></head><body>`
+        + `<h1>Directorio de Clientes</h1><div class="meta">Comercializadora Rami2020 CA &bull; Generado: ${new Date().toLocaleString("es-VE")} &bull; ${lista.length} cliente${lista.length === 1 ? "" : "s"}${notaFiltro}</div>`
+        + cuerpo + `</body></html>`;
+      const w = window.open("", "_blank");
+      if (!w) { alert("Permita las ventanas emergentes de este sitio para poder imprimir la lista."); return; }
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 400);
+    }
+
+    function dcNombreHoja(nombre, usados) {
+      let base = String(nombre || "Hoja").replace(/[\[\]:*?\/\\]/g, "-").trim().substring(0, 31) || "Hoja";
+      let final = base, n = 2;
+      while (usados[final.toLowerCase()]) {
+        const suf = " " + n++;
+        final = base.substring(0, 31 - suf.length) + suf;
+      }
+      usados[final.toLowerCase()] = true;
+      return final;
+    }
+
+    function dcExcelVendedor() {
+      if (!esAdminGeneral(currentUser)) { alert("Solo el administrador general puede generar este archivo."); return; }
+      if (typeof XLSX === "undefined") { alert("La librería de Excel no está cargada. Verifique su conexión a internet."); return; }
+      if (!dcFiltroVend) { alert("Primero elija un vendedor en el selector para generar su archivo."); return; }
+      const lista = dcClientes.filter(c => c.vendKey === dcFiltroVend);
+      if (!lista.length) { alert("Ese vendedor no tiene clientes."); return; }
+      const nombreV = lista[0].vendNombre;
+      const fecha = new Date().toLocaleDateString("en-CA");
+      const cab = ["N°", "Código", "Cliente / Local", "Teléfono", "Dirección", "Sector", "RIF / Cédula correcto", "Nombre correcto", "Teléfono correcto", "Dirección exacta", "Observación"];
+      const aoa = [
+        [`Directorio de Clientes - Vendedor: ${nombreV} - Fecha: ${fecha}`],
+        ["Complete las columnas en blanco (RIF / Cédula correcto, Nombre correcto, Teléfono correcto, Dirección exacta y Observación) solo en los clientes que necesiten corrección. No modifique las primeras 6 columnas."],
+        [],
+        cab,
+        ...lista.map((c, i) => [i + 1, c.rif, c.nombre, c.tel, c.dir, c.sector, "", "", "", "", ""])
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws["!cols"] = [5, 16, 36, 16, 44, 16, 22, 30, 16, 40, 30].map(w => ({ wch: w }));
+      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 10 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } }];
+      ws["!autofilter"] = { ref: `A4:K${aoa.length}` };
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+      XLSX.writeFile(wb, `Clientes_${sanitizeFileName(nombreV)}_${fecha}.xlsx`);
+    }
+
+    function dcExcelCompleto() {
+      if (!esAdminGeneral(currentUser)) { alert("Solo el administrador general puede generar este archivo."); return; }
+      if (typeof XLSX === "undefined") { alert("La librería de Excel no está cargada. Verifique su conexión a internet."); return; }
+      if (!dcClientes.length) { alert("No hay clientes cargados."); return; }
+      const fecha = new Date().toLocaleDateString("en-CA");
+      const wb = XLSX.utils.book_new();
+      const usados = {};
+
+      const todos = [["N°", "Vendedor", "Código", "Cliente / Local", "Teléfono", "Dirección", "Sector", "Código Premium"],
+        ...dcClientes.map((c, i) => [i + 1, c.vendNombre, c.rif, c.nombre, c.tel, c.dir, c.sector, c.premium])];
+      const wsTodos = XLSX.utils.aoa_to_sheet(todos);
+      wsTodos["!cols"] = [5, 26, 16, 36, 16, 44, 16, 18].map(w => ({ wch: w }));
+      wsTodos["!autofilter"] = { ref: `A1:H${todos.length}` };
+      XLSX.utils.book_append_sheet(wb, wsTodos, dcNombreHoja("Todos los clientes", usados));
+
+      dcAgrupar(dcClientes).forEach(g => {
+        const filas = [["N°", "Código", "Cliente / Local", "Teléfono", "Dirección", "Sector", "Código Premium"],
+          ...g.lista.map((c, i) => [i + 1, c.rif, c.nombre, c.tel, c.dir, c.sector, c.premium])];
+        const ws = XLSX.utils.aoa_to_sheet(filas);
+        ws["!cols"] = [5, 16, 36, 16, 44, 16, 18].map(w => ({ wch: w }));
+        XLSX.utils.book_append_sheet(wb, ws, dcNombreHoja(g.nombre, usados));
+      });
+      XLSX.writeFile(wb, `Directorio_Clientes_COMPLETO_${fecha}.xlsx`);
     }
 
     function sanitizeFileName(text) {
